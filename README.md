@@ -4,7 +4,7 @@
 
 路線図を作って、ElevenLabs APIで電車のアナウンス音声が作れるツールです。
 
-試してみる: https://url.github.io/Train-Announcement-Creator
+試してみる: https://landonikko.github.io/Train-Announcement-Creator
 
 ## 特徴
 - インタラクティブな路線図エディタ
