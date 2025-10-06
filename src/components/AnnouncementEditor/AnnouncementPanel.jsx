@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Plus, Play, Pause } from 'lucide-react'
+import { Plus, Play, Pause, X } from 'lucide-react'
 import AnnouncementCard from './AnnouncementCard'
 import AnnouncementGenerator from './AnnouncementGenerator'
+import { useTranslation } from '../../hooks/useTranslation'
 
-const AnnouncementPanel = ({ stations, lines, announcements, setAnnouncements, apiKey }) => {
+const AnnouncementPanel = ({ stations, lines, announcements, setAnnouncements, apiKey, language = 'en', isMobile, onClose }) => {
+  const { t } = useTranslation(language)
   const [isGenerating, setIsGenerating] = useState(false)
   const [showGenerator, setShowGenerator] = useState(false)
   const [currentlyPlaying, setCurrentlyPlaying] = useState(null)
@@ -29,30 +31,40 @@ const AnnouncementPanel = ({ stations, lines, announcements, setAnnouncements, a
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      <div className="p-4 border-b border-gray-200">
-        <h2 className="text-lg font-bold text-gray-800 mb-3">Announcements</h2>
+    <div className="flex flex-col h-full bg-white dark:bg-gray-800">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t('announcements')}</h2>
+          {isMobile && onClose && (
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+            >
+              <X size={20} className="text-gray-600 dark:text-gray-400" />
+            </button>
+          )}
+        </div>
         <button
           onClick={() => setShowGenerator(true)}
           disabled={!apiKey || stations.length === 0}
-          className="w-full flex items-center justify-center gap-2 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
         >
           <Plus size={18} />
-          <span>Generate Announcement</span>
+          <span>{t('generateAnnouncement')}</span>
         </button>
         {!apiKey && (
-          <p className="text-xs text-orange-600 mt-2">Set API key to generate announcements</p>
+          <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">{t('setApiKeyToGenerate')}</p>
         )}
         {apiKey && stations.length === 0 && (
-          <p className="text-xs text-orange-600 mt-2">Add stations to the map first</p>
+          <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">{t('addStationsFirst')}</p>
         )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {announcements.length === 0 ? (
-          <div className="text-center text-gray-400 mt-8">
-            <p>No announcements yet</p>
-            <p className="text-sm mt-2">Create stations and generate your first announcement</p>
+          <div className="text-center text-gray-400 dark:text-gray-500 mt-8">
+            <p>{t('noAnnouncementsYet')}</p>
+            <p className="text-sm mt-2">{t('createFirstAnnouncement')}</p>
           </div>
         ) : (
           announcements.map(announcement => (

@@ -1,4 +1,4 @@
-const GridCanvas = ({ spacing, viewBox }) => {
+const GridCanvas = ({ spacing, viewBox, zoom = 1 }) => {
   const dots = []
   const startX = Math.floor(viewBox.x / spacing) * spacing
   const endX = Math.ceil((viewBox.x + viewBox.width) / spacing) * spacing
@@ -11,6 +11,9 @@ const GridCanvas = ({ spacing, viewBox }) => {
     }
   }
 
+  // Scale dot radius with zoom (larger when zoomed in)
+  const dotRadius = Math.min(5, 3 * zoom)
+
   return (
     <g>
       <rect
@@ -18,17 +21,15 @@ const GridCanvas = ({ spacing, viewBox }) => {
         y={viewBox.y}
         width={viewBox.width}
         height={viewBox.height}
-        fill="#f9fafb"
-        className="pointer-events-none"
+        className="pointer-events-none fill-gray-50 dark:fill-gray-800"
       />
       {dots.map(dot => (
         <circle
           key={dot.key}
           cx={dot.x}
           cy={dot.y}
-          r="3"
-          fill="#d1d5db"
-          className="grid-dot cursor-pointer hover:fill-blue-400 transition-colors"
+          r={dotRadius}
+          className="grid-dot cursor-pointer fill-gray-300 dark:fill-gray-600 hover:fill-blue-400 dark:hover:fill-blue-500 transition-colors"
         />
       ))}
     </g>
