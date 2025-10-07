@@ -1,4 +1,4 @@
-const GridCanvas = ({ spacing, viewBox, zoom = 1 }) => {
+const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverPoint = null }) => {
   const dots = []
   const startX = Math.floor(viewBox.x / spacing) * spacing
   const endX = Math.ceil((viewBox.x + viewBox.width) / spacing) * spacing
@@ -11,8 +11,8 @@ const GridCanvas = ({ spacing, viewBox, zoom = 1 }) => {
     }
   }
 
-  // Scale dot radius with zoom (larger when zoomed in)
   const dotRadius = Math.min(5, 3 * zoom)
+  const showHoverIndicator = currentTool === 'station' || currentTool === 'createLine' || currentTool === 'drawPath'
 
   return (
     <g>
@@ -23,15 +23,35 @@ const GridCanvas = ({ spacing, viewBox, zoom = 1 }) => {
         height={viewBox.height}
         className="pointer-events-none fill-gray-50 dark:fill-gray-800"
       />
-      {dots.map(dot => (
+      {dots.map(dot => {
+        const isHovered = showHoverIndicator && hoverPoint && 
+          Math.abs(dot.x - hoverPoint.x) < 1 && 
+          Math.abs(dot.y - hoverPoint.y) < 1
+        
+        return (
+          <circle
+            key={dot.key}
+            cx={dot.x}
+            cy={dot.y}
+            r={isHovered ? dotRadius * 2 : dotRadius}
+            className={`grid-dot cursor-pointer transition-all ${
+              isHovered 
+                ? 'fill-blue-400 dark:fill-blue-500' 
+                : 'fill-gray-300 dark:fill-gray-600 hover:fill-blue-400 dark:hover:fill-blue-500'
+            }`}
+          />
+        )
+      })}
+      
+      {showHoverIndicator && hoverPoint && (
         <circle
-          key={dot.key}
-          cx={dot.x}
-          cy={dot.y}
-          r={dotRadius}
-          className="grid-dot cursor-pointer fill-gray-300 dark:fill-gray-600 hover:fill-blue-400 dark:hover:fill-blue-500 transition-colors"
+          cx={hoverPoint.x}
+          cy={hoverPoint.y}
+          r={dotRadius * 3}
+          className="fill-blue-400 dark:fill-blue-500 pointer-events-none"
+          opacity="0.3"
         />
-      ))}
+      )}
     </g>
   )
 }

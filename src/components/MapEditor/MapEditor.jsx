@@ -1,10 +1,11 @@
 import { useRef, useState, useEffect } from 'react'
-import { Crosshair } from 'lucide-react'
+import { Crosshair, CheckCircle } from 'lucide-react'
 import GridCanvas from './GridCanvas'
 import StationMarker from './StationMarker'
 import TrainLine from './TrainLine'
 import StationEditor from './StationEditor'
 import { useTranslation } from '../../hooks/useTranslation'
+import { getNextStationName } from '../../data/stationNames'
 
 const MapEditor = ({ 
   stations, 
@@ -17,7 +18,10 @@ const MapEditor = ({
   setSelectedStations,
   gridZoom = 1,
   language = 'en',
-  lineStyle = 'smooth'
+  lineStyle = 'smooth',
+  showStationNumbers = false,
+  isMobile = false,
+  selectedStationId = null
 }) => {
   const { t } = useTranslation(language)
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1200, height: 800 })
@@ -26,13 +30,17 @@ const MapEditor = ({
   const [editingStation, setEditingStation] = useState(null)
   const [draggingStation, setDraggingStation] = useState(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [hoverGridPoint, setHoverGridPoint] = useState(null)
+  const [mousePosition, setMousePosition] = useState(null)
+  const [lineCreationStations, setLineCreationStations] = useState([])
+  const [pathCreationPoints, setPathCreationPoints] = useState([])
+  const [currentLineColor, setCurrentLineColor] = useState('#ef4444')
   const svgRef = useRef(null)
   const containerRef = useRef(null)
   
   const gridSpacing = 30 * gridZoom
   const snapToGrid = (coord) => Math.round(coord / gridSpacing) * gridSpacing
 
-  // Update station positions when zoom changes (without saving to history)
   useEffect(() => {
     const updatedStations = stations.map(station => {
       if (station.gridIndexX !== undefined && station.gridIndexY !== undefined) {
@@ -47,7 +55,6 @@ const MapEditor = ({
     setStationsNoHistory(updatedStations)
   }, [gridZoom])
 
-  // Handle window resize to update viewBox dimensions
   useEffect(() => {
     const updateViewBoxSize = () => {
       if (containerRef.current) {
@@ -65,6 +72,15 @@ const MapEditor = ({
     return () => window.removeEventListener('resize', updateViewBoxSize)
   }, [])
 
+  useEffect(() => {
+    if (currentTool !== 'createLine') {
+      setLineCreationStations([])
+    }
+    if (currentTool !== 'drawPath') {
+      setPathCreationPoints([])
+    }
+  }, [currentTool])
+
   const getSVGPoint = (clientX, clientY) => {
     if (!svgRef.current) return { x: 0, y: 0 }
     const pt = svgRef.current.createSVGPoint()
@@ -74,15 +90,24 @@ const MapEditor = ({
     return { x: svgP.x, y: svgP.y }
   }
 
+  const getLineColors = () => {
+    const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4']
+    const lineCount = lines.length
+    return colors[lineCount % colors.length]
+  }
+
+  const getLinePrefix = (lineIndex) => {
+    if (lines.length <= 1) return null
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    return letters[lineIndex % letters.length]
+  }
+
   const handleCanvasClick = (e) => {
-    // Station tool - add new station
     if (currentTool === 'station') {
-      // Smart grid point detection - snap to nearest grid point
       if (e.target.tagName === 'circle' && e.target.classList.contains('grid-dot')) {
         const cx = parseFloat(e.target.getAttribute('cx'))
         const cy = parseFloat(e.target.getAttribute('cy'))
         
-        // Store grid indices for zoom scaling
         const gridIndexX = Math.round(cx / gridSpacing)
         const gridIndexY = Math.round(cy / gridSpacing)
         
@@ -92,12 +117,11 @@ const MapEditor = ({
           gridIndexY,
           x: cx,
           y: cy,
-          name: `${t('station')} ${stations.length + 1}`,
+          name: getNextStationName(stations, language),
           color: '#3b82f6'
         }
         setStations([...stations, newStation])
       } else if (e.target.tagName === 'rect' || e.target === svgRef.current) {
-        // Clicked on background - find nearest grid point
         const svgPoint = getSVGPoint(e.clientX, e.clientY)
         const nearestX = Math.round(svgPoint.x / gridSpacing) * gridSpacing
         const nearestY = Math.round(svgPoint.y / gridSpacing) * gridSpacing
@@ -111,45 +135,68 @@ const MapEditor = ({
           gridIndexY,
           x: nearestX,
           y: nearestY,
-          name: `${t('station')} ${stations.length + 1}`,
+          name: getNextStationName(stations, language),
           color: '#3b82f6'
         }
         setStations([...stations, newStation])
       }
     }
-    // Line tool - find nearest station and connect
-    else if (currentTool === 'line' && (e.target.tagName === 'rect' || e.target === svgRef.current || e.target.tagName === 'circle')) {
-      const svgPoint = getSVGPoint(e.clientX, e.clientY)
-      
-      // Find nearest station
-      let nearestStation = null
-      let minDistance = Infinity
-      
-      stations.forEach(station => {
-        const distance = Math.sqrt(
-          Math.pow(station.x - svgPoint.x, 2) + Math.pow(station.y - svgPoint.y, 2)
-        )
-        if (distance < minDistance && distance < gridSpacing * 2) {
-          minDistance = distance
-          nearestStation = station
-        }
-      })
-      
-      if (nearestStation && !selectedStations.find(s => s.id === nearestStation.id)) {
-        const newSelected = [...selectedStations, nearestStation]
-        setSelectedStations(newSelected)
+    else if (currentTool === 'createLine') {
+      if (e.target.tagName === 'circle' && e.target.classList.contains('grid-dot')) {
+        const cx = parseFloat(e.target.getAttribute('cx'))
+        const cy = parseFloat(e.target.getAttribute('cy'))
         
-        if (newSelected.length >= 2) {
-          const newLine = {
-            id: `line-${Date.now()}`,
-            name: `Line ${lines.length + 1}`,
-            stations: newSelected.map(s => s.id),
-            color: '#ef4444',
-            tension: 0.7
-          }
-          setLines([...lines, newLine])
-          setSelectedStations([])
+        const gridIndexX = Math.round(cx / gridSpacing)
+        const gridIndexY = Math.round(cy / gridSpacing)
+        
+        const newStation = {
+          id: `station-${Date.now()}-${lineCreationStations.length}`,
+          gridIndexX,
+          gridIndexY,
+          x: cx,
+          y: cy,
+          name: getNextStationName([...stations, ...lineCreationStations], language),
+          color: currentLineColor
         }
+        setLineCreationStations([...lineCreationStations, newStation])
+      } else if (e.target.tagName === 'rect' || e.target === svgRef.current) {
+        const svgPoint = getSVGPoint(e.clientX, e.clientY)
+        const nearestX = Math.round(svgPoint.x / gridSpacing) * gridSpacing
+        const nearestY = Math.round(svgPoint.y / gridSpacing) * gridSpacing
+        
+        const gridIndexX = Math.round(nearestX / gridSpacing)
+        const gridIndexY = Math.round(nearestY / gridSpacing)
+        
+        const newStation = {
+          id: `station-${Date.now()}-${lineCreationStations.length}`,
+          gridIndexX,
+          gridIndexY,
+          x: nearestX,
+          y: nearestY,
+          name: getNextStationName([...stations, ...lineCreationStations], language),
+          color: currentLineColor
+        }
+        setLineCreationStations([...lineCreationStations, newStation])
+      }
+    }
+    else if (currentTool === 'drawPath') {
+      if (e.target.tagName === 'circle' && e.target.classList.contains('grid-dot')) {
+        const cx = parseFloat(e.target.getAttribute('cx'))
+        const cy = parseFloat(e.target.getAttribute('cy'))
+        
+        const gridIndexX = Math.round(cx / gridSpacing)
+        const gridIndexY = Math.round(cy / gridSpacing)
+        
+        setPathCreationPoints([...pathCreationPoints, { x: cx, y: cy, gridIndexX, gridIndexY }])
+      } else if (e.target.tagName === 'rect' || e.target === svgRef.current) {
+        const svgPoint = getSVGPoint(e.clientX, e.clientY)
+        const nearestX = Math.round(svgPoint.x / gridSpacing) * gridSpacing
+        const nearestY = Math.round(svgPoint.y / gridSpacing) * gridSpacing
+        
+        const gridIndexX = Math.round(nearestX / gridSpacing)
+        const gridIndexY = Math.round(nearestY / gridSpacing)
+        
+        setPathCreationPoints([...pathCreationPoints, { x: nearestX, y: nearestY, gridIndexX, gridIndexY }])
       }
     }
   }
@@ -159,23 +206,6 @@ const MapEditor = ({
     
     if (currentTool === 'select') {
       setEditingStation(station)
-    } else if (currentTool === 'line') {
-      if (!selectedStations.find(s => s.id === station.id)) {
-        const newSelected = [...selectedStations, station]
-        setSelectedStations(newSelected)
-        
-        if (newSelected.length >= 2) {
-          const newLine = {
-            id: `line-${Date.now()}`,
-            name: `Line ${lines.length + 1}`,
-            stations: newSelected.map(s => s.id),
-            color: '#ef4444',
-            tension: 0.7
-          }
-          setLines([...lines, newLine])
-          setSelectedStations([])
-        }
-      }
     }
   }
 
@@ -184,7 +214,7 @@ const MapEditor = ({
       e.stopPropagation()
       const svgPoint = getSVGPoint(e.clientX, e.clientY)
       setDraggingStation(station)
-      setEditingStation(null) // Close edit station when starting drag
+      setEditingStation(null)
       setDragOffset({
         x: svgPoint.x - station.x,
         y: svgPoint.y - station.y
@@ -199,7 +229,6 @@ const MapEditor = ({
   const handleStationDelete = (stationId) => {
     setStations(stations.filter(s => s.id !== stationId))
     
-    // Update lines to remove the deleted station, keep lines with 2+ remaining stations
     const updatedLines = lines.map(line => ({
       ...line,
       stations: line.stations.filter(id => id !== stationId)
@@ -210,21 +239,32 @@ const MapEditor = ({
   }
 
   const handleMouseDown = (e) => {
-    if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+    const canPan = e.button === 1 || (e.button === 0 && e.shiftKey) || (e.button === 0 && currentTool === 'select' && (e.target.tagName === 'rect' || e.target === svgRef.current))
+    
+    if (canPan) {
       setIsPanning(true)
       setPanStart({ x: e.clientX, y: e.clientY })
-      setEditingStation(null) // Close edit station when panning
+      setEditingStation(null)
       e.preventDefault()
     }
   }
 
   const handleMouseMove = (e) => {
+    const svgPoint = getSVGPoint(e.clientX, e.clientY)
+    setMousePosition(svgPoint)
+
+    if (currentTool === 'createLine' || currentTool === 'drawPath' || currentTool === 'station') {
+      const nearestX = Math.round(svgPoint.x / gridSpacing) * gridSpacing
+      const nearestY = Math.round(svgPoint.y / gridSpacing) * gridSpacing
+      setHoverGridPoint({ x: nearestX, y: nearestY })
+    } else {
+      setHoverGridPoint(null)
+    }
+
     if (draggingStation) {
-      const svgPoint = getSVGPoint(e.clientX, e.clientY)
       const newX = snapToGrid(svgPoint.x - dragOffset.x)
       const newY = snapToGrid(svgPoint.y - dragOffset.y)
       
-      // Use no-history version during drag for performance and to avoid multiple history entries
       setStationsNoHistory(prev => prev.map(s => 
         s.id === draggingStation.id 
           ? { 
@@ -249,31 +289,145 @@ const MapEditor = ({
   }
 
   const handleMouseUp = () => {
-    // Save to history when finishing a drag operation
     if (draggingStation) {
-      // Use wrapped version to save current state to history
       setStations(stations)
     }
     setIsPanning(false)
     setDraggingStation(null)
   }
 
+  const handleContextMenu = (e) => {
+    e.preventDefault()
+    if (currentTool === 'createLine' && lineCreationStations.length >= 2) {
+      finishLineCreation()
+    } else if (currentTool === 'drawPath' && pathCreationPoints.length >= 2) {
+      finishPathCreation()
+    }
+  }
+
+  const finishLineCreation = () => {
+    if (lineCreationStations.length >= 2) {
+      const newStations = [...stations, ...lineCreationStations]
+      const newLine = {
+        id: `line-${Date.now()}`,
+        name: `Line ${lines.length + 1}`,
+        stations: lineCreationStations.map(s => s.id),
+        color: currentLineColor,
+        tension: 0.7
+      }
+      setStations(newStations)
+      setLines([...lines, newLine])
+      setLineCreationStations([])
+      setCurrentLineColor(getLineColors())
+    }
+  }
+
+  const finishPathCreation = () => {
+    if (pathCreationPoints.length >= 2) {
+      const numStations = Math.max(2, Math.floor(pathCreationPoints.length / 2) + 1)
+      const newStations = []
+      
+      for (let i = 0; i < numStations; i++) {
+        const t = i / (numStations - 1)
+        const pointIndex = Math.floor(t * (pathCreationPoints.length - 1))
+        const point = pathCreationPoints[pointIndex]
+        
+        newStations.push({
+          id: `station-${Date.now()}-${i}`,
+          gridIndexX: point.gridIndexX,
+          gridIndexY: point.gridIndexY,
+          x: point.x,
+          y: point.y,
+          name: getNextStationName([...stations, ...newStations], language),
+          color: currentLineColor
+        })
+      }
+      
+      const allStations = [...stations, ...newStations]
+      const newLine = {
+        id: `line-${Date.now()}`,
+        name: `Line ${lines.length + 1}`,
+        stations: newStations.map(s => s.id),
+        color: currentLineColor,
+        tension: 0.7
+      }
+      
+      setStations(allStations)
+      setLines([...lines, newLine])
+      setPathCreationPoints([])
+      setCurrentLineColor(getLineColors())
+    }
+  }
+
   const handleCenterView = () => {
     if (stations.length === 0) return
     
-    // Calculate center point of all stations
     const xs = stations.map(s => s.x)
     const ys = stations.map(s => s.y)
     const centerX = (Math.min(...xs) + Math.max(...xs)) / 2
     const centerY = (Math.min(...ys) + Math.max(...ys)) / 2
     
-    // Keep current zoom level, just center the view
     setViewBox(prev => ({
       ...prev,
       x: centerX - prev.width / 2,
       y: centerY - prev.height / 2
     }))
   }
+
+  const renderGhostLine = () => {
+    if (currentTool === 'createLine' && lineCreationStations.length > 0 && mousePosition) {
+      const points = [...lineCreationStations, { x: mousePosition.x, y: mousePosition.y }]
+      const pathData = points.map((p, i) => 
+        `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+      ).join(' ')
+      
+      return (
+        <path
+          d={pathData}
+          stroke={currentLineColor}
+          strokeWidth="3"
+          fill="none"
+          strokeDasharray="5,5"
+          opacity="0.5"
+          pointerEvents="none"
+        />
+      )
+    }
+    
+    if (currentTool === 'drawPath' && pathCreationPoints.length > 0 && mousePosition) {
+      const points = [...pathCreationPoints, { x: mousePosition.x, y: mousePosition.y }]
+      const pathData = points.map((p, i) => 
+        `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+      ).join(' ')
+      
+      return (
+        <path
+          d={pathData}
+          stroke={currentLineColor}
+          strokeWidth="3"
+          fill="none"
+          strokeDasharray="5,5"
+          opacity="0.5"
+          pointerEvents="none"
+        />
+      )
+    }
+    
+    return null
+  }
+
+  const getStationDisplayName = (station, stationIndex, lineIndex) => {
+    if (!showStationNumbers) return station.name
+    
+    const linePrefix = getLinePrefix(lineIndex)
+    if (linePrefix) {
+      return `${linePrefix}${stationIndex + 1}: ${station.name}`
+    }
+    
+    return `${stationIndex + 1}. ${station.name}`
+  }
+
+  const allDisplayStations = [...stations, ...lineCreationStations]
 
   return (
     <div ref={containerRef} className="relative w-full h-full bg-gray-50 dark:bg-gray-800">
@@ -287,10 +441,11 @@ const MapEditor = ({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onContextMenu={handleContextMenu}
       >
-        <GridCanvas spacing={gridSpacing} viewBox={viewBox} zoom={gridZoom} />
+        <GridCanvas spacing={gridSpacing} viewBox={viewBox} zoom={gridZoom} currentTool={currentTool} hoverPoint={hoverGridPoint} />
         
-        {lines.map(line => (
+        {lines.map((line, lineIndex) => (
           <TrainLine
             key={line.id}
             line={line}
@@ -299,15 +454,53 @@ const MapEditor = ({
           />
         ))}
         
-        {stations.map(station => (
+        {renderGhostLine()}
+        
+        {pathCreationPoints.map((point, i) => (
+          <circle
+            key={`path-point-${i}`}
+            cx={point.x}
+            cy={point.y}
+            r="4"
+            fill={currentLineColor}
+            opacity="0.7"
+          />
+        ))}
+        
+        {stations.map((station, index) => {
+          const stationLine = lines.find(line => line.stations.includes(station.id))
+          const lineIndex = stationLine ? lines.indexOf(stationLine) : 0
+          const stationIndexInLine = stationLine ? stationLine.stations.indexOf(station.id) : index
+          
+          return (
+            <StationMarker
+              key={station.id}
+              station={{
+                ...station,
+                name: getStationDisplayName(station, stationIndexInLine, lineIndex)
+              }}
+              isSelected={selectedStations.some(s => s.id === station.id)}
+              isDragging={draggingStation?.id === station.id}
+              isHighlighted={selectedStationId === station.id}
+              onClick={(e) => handleStationClick(station, e)}
+              onMouseDown={(e) => handleStationMouseDown(station, e)}
+              allStations={allDisplayStations}
+            />
+          )
+        })}
+        
+        {lineCreationStations.map((station, index) => (
           <StationMarker
             key={station.id}
-            station={station}
-            isSelected={selectedStations.some(s => s.id === station.id)}
-            isDragging={draggingStation?.id === station.id}
-            onClick={(e) => handleStationClick(station, e)}
-            onMouseDown={(e) => handleStationMouseDown(station, e)}
-            allStations={stations}
+            station={{
+              ...station,
+              name: getStationDisplayName(station, index, lines.length)
+            }}
+            isSelected={false}
+            isDragging={false}
+            onClick={() => {}}
+            onMouseDown={() => {}}
+            allStations={allDisplayStations}
           />
         ))}
       </svg>
@@ -332,10 +525,30 @@ const MapEditor = ({
           <span>{t('centerView')}</span>
         </button>
         
+        {(currentTool === 'createLine' && lineCreationStations.length >= 2) && (
+          <button
+            onClick={finishLineCreation}
+            className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-md text-sm hover:bg-green-600 transition-colors"
+          >
+            <CheckCircle size={16} />
+            <span>{t('finishLine')}</span>
+          </button>
+        )}
+        
+        {(currentTool === 'drawPath' && pathCreationPoints.length >= 2) && (
+          <button
+            onClick={finishPathCreation}
+            className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-md text-sm hover:bg-green-600 transition-colors"
+          >
+            <CheckCircle size={16} />
+            <span>{t('finishLine')}</span>
+          </button>
+        )}
+        
         <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md text-sm text-gray-600 dark:text-gray-300">
           {currentTool === 'station' && t('clickGridToAddStation')}
-          {currentTool === 'line' && selectedStations.length === 0 && t('clickStationsToConnect')}
-          {currentTool === 'line' && selectedStations.length === 1 && t('clickAnotherStation')}
+          {currentTool === 'createLine' && (isMobile ? t('tapToAddStations') : t('clickToAddStations'))}
+          {currentTool === 'drawPath' && (isMobile ? t('tapToDrawPath') : t('clickToDrawPath'))}
         </div>
       </div>
     </div>

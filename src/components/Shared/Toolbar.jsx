@@ -1,16 +1,17 @@
-import { Pointer, MapPin, Minus, Key, Info, RotateCcw, ZoomIn, ZoomOut, Globe, Undo2, Redo2, ChevronUp } from 'lucide-react'
+import { Pointer, MapPin, Minus, Key, Info, RotateCcw, ZoomIn, ZoomOut, Globe, Undo2, Redo2, ChevronUp, GitBranch, Pencil, Hash } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from '../../hooks/useTranslation'
 import { languages } from '../../locales/translations'
 
-const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMode, onToggleDarkMode, gridZoom, onGridZoomChange, onReset, language, onLanguageChange, lineStyle, onLineStyleChange, onUndo, onRedo, canUndo, canRedo, isMobile, showMobileHeader, onToggleMobileHeader }) => {
+const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMode, onToggleDarkMode, gridZoom, onGridZoomChange, onReset, language, onLanguageChange, lineStyle, onLineStyleChange, onUndo, onRedo, canUndo, canRedo, isMobile, showMobileHeader, onToggleMobileHeader, showStationNumbers, onToggleStationNumbers }) => {
   const { t } = useTranslation(language)
   const [showLanguageMenu, setShowLanguageMenu] = useState(false)
   const languageMenuRef = useRef(null)
   const tools = [
     { id: 'select', icon: Pointer, label: t('selectTool') },
     { id: 'station', icon: MapPin, label: t('addStationTool') },
-    { id: 'line', icon: Minus, label: t('drawLineTool') },
+    { id: 'createLine', icon: GitBranch, label: t('createTrainLineTool') },
+    { id: 'drawPath', icon: Pencil, label: t('drawPathTool') },
   ]
 
   useEffect(() => {
@@ -29,7 +30,13 @@ const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMod
       {/* Desktop Layout */}
       <div className="hidden md:flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold text-gray-800 dark:text-gray-200">{t('appTitle')}</h1>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-xl font-bold text-gray-800 dark:text-gray-200 hover:text-blue-500 dark:hover:text-blue-400 transition-all duration-200 hover:scale-105 cursor-pointer"
+            title="Refresh page"
+          >
+            {t('appTitle')}
+          </button>
           
           <div className="flex gap-2">
             {tools.map(tool => (
@@ -50,6 +57,18 @@ const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMod
         </div>
 
       <div className="flex items-center gap-3">
+        <button
+          onClick={onToggleStationNumbers}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+            showStationNumbers
+              ? 'bg-blue-500 text-white'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+          }`}
+          title={showStationNumbers ? t('hideStationNumbers') : t('showStationNumbers')}
+        >
+          <Hash size={18} />
+        </button>
+
         <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
           <span className="text-xs text-gray-600 dark:text-gray-400 mr-1">{t('lineStyle')}:</span>
           <div className="flex gap-1">
@@ -138,6 +157,7 @@ const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMod
           onMouseLeave={() => setShowLanguageMenu(false)}
         >
           <button
+            onClick={() => setShowLanguageMenu(!showLanguageMenu)}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             title="Language"
           >
@@ -146,7 +166,7 @@ const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMod
           </button>
           
            {showLanguageMenu && (
-             <div className="absolute top-full right-0 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 z-[100]">
+             <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 z-[100]">
               {languages.map(lang => (
                 <button
                   key={lang.code}

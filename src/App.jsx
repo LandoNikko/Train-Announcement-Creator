@@ -13,9 +13,12 @@ function App() {
   const [currentTool, setCurrentTool] = useState('select')
   const [selectedStations, setSelectedStations] = useState([])
   const [apiKey, setApiKey] = useState(sessionStorage.getItem('elevenLabsApiKey') || '')
-  const [showApiKeyInput, setShowApiKeyInput] = useState(!apiKey)
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false)
   const [currentPresetId, setCurrentPresetId] = useState(null)
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode')
+    return saved === 'true'
+  })
   const [gridZoom, setGridZoom] = useState(1)
   const [language, setLanguage] = useState(() => {
     return localStorage.getItem('language') || 'en'
@@ -24,24 +27,18 @@ function App() {
   const [showMobilePresets, setShowMobilePresets] = useState(false)
   const [showMobileAnnouncements, setShowMobileAnnouncements] = useState(false)
   const [showMobileHeader, setShowMobileHeader] = useState(true)
-  const [lineStyle, setLineStyle] = useState('smooth')
+  const [lineStyle, setLineStyle] = useState(() => {
+    return localStorage.getItem('lineStyle') || 'smooth'
+  })
   const [history, setHistory] = useState([])
   const [historyIndex, setHistoryIndex] = useState(-1)
+  const [showStationNumbers, setShowStationNumbers] = useState(false)
+  const [selectedStationId, setSelectedStationId] = useState(null)
 
   useEffect(() => {
     const defaultPreset = trainPresets.find(p => p.id === 'simple')
     if (defaultPreset && stations.length === 0) {
       loadPreset(defaultPreset)
-    }
-    
-    // Load dark mode preference from localStorage - default to light mode if not set
-    const savedDarkMode = localStorage.getItem('darkMode')
-    if (savedDarkMode === null) {
-      // First time user - default to light mode
-      setIsDarkMode(false)
-      localStorage.setItem('darkMode', 'false')
-    } else {
-      setIsDarkMode(savedDarkMode === 'true')
     }
   }, [])
 
@@ -63,6 +60,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('language', language)
   }, [language])
+
+  useEffect(() => {
+    localStorage.setItem('lineStyle', lineStyle)
+  }, [lineStyle])
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
@@ -205,6 +206,8 @@ function App() {
           isMobile={isMobile}
           showMobileHeader={showMobileHeader}
           onToggleMobileHeader={() => setShowMobileHeader(!showMobileHeader)}
+          showStationNumbers={showStationNumbers}
+          onToggleStationNumbers={() => setShowStationNumbers(!showStationNumbers)}
         />
       )}
       
@@ -243,6 +246,9 @@ function App() {
             gridZoom={gridZoom}
             language={language}
             lineStyle={lineStyle}
+            showStationNumbers={showStationNumbers}
+            isMobile={isMobile}
+            selectedStationId={selectedStationId}
           />
           
           {isMobile && (
@@ -283,6 +289,8 @@ function App() {
               language={language}
               isMobile={isMobile}
               onClose={() => setShowMobileAnnouncements(false)}
+              onStationSelect={setSelectedStationId}
+              selectedStationId={selectedStationId}
             />
           </div>
         )}

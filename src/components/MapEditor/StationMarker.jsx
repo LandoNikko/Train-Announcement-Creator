@@ -1,4 +1,4 @@
-const StationMarker = ({ station, isSelected, isDragging, onClick, onMouseDown, allStations = [] }) => {
+const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false, onClick, onMouseDown, allStations = [] }) => {
   const fontSize = 14
   const textPadding = 10
   
@@ -83,13 +83,25 @@ const StationMarker = ({ station, isSelected, isDragging, onClick, onMouseDown, 
       onMouseDown={onMouseDown}
       className={isDragging ? "cursor-grabbing" : "cursor-grab"}
     >
+      {isHighlighted && (
+        <circle
+          cx={station.x}
+          cy={station.y}
+          r="16"
+          fill="none"
+          stroke="#3b82f6"
+          strokeWidth="3"
+          opacity="0.6"
+          className="animate-pulse"
+        />
+      )}
       <circle
         cx={station.x}
         cy={station.y}
         r={isDragging ? "10" : "8"}
         fill={isSelected ? '#fbbf24' : station.color}
-        stroke="white"
-        strokeWidth="2"
+        stroke={isHighlighted ? '#3b82f6' : 'white'}
+        strokeWidth={isHighlighted ? '3' : '2'}
         className="transition-all hover:r-10"
       />
       <circle
