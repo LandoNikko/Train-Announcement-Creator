@@ -16,3 +16,17 @@ body {
   height: 100vh;
   overflow: hidden;
 }
+
+@keyframes sound-wave {
+  0%, 100% {
+    transform: scaleY(0.4);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-sound-wave {
+  animation: sound-wave 0.8s ease-in-out infinite;
+  transform-origin: center;
+}
