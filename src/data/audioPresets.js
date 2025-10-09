@@ -1,17 +1,27 @@
 // Audio presets are loaded from the public folder
 // Files are assigned to stations in order they appear
 
+// Get base URL from Vite (handles both local and GitHub Pages paths)
+const getBasePath = () => {
+  return import.meta.env.BASE_URL || '/'
+}
+
+const getPresetPath = (filename) => {
+  const base = getBasePath()
+  return `${base}audio/presets/${filename}`.replace(/\/\//g, '/')
+}
+
 export const getAvailablePresets = async () => {
   const presetFiles = [
-    '/audio/presets/shinjuku1bansen-jihatu.mp3',
-    '/audio/presets/shinjuku1bansen-sekkin.mp3',
-    '/audio/presets/shinjuku1bansen-totyaku.mp3'
+    'shinjuku1bansen-jihatu.mp3',
+    'shinjuku1bansen-sekkin.mp3',
+    'shinjuku1bansen-totyaku.mp3'
   ]
   
-  return presetFiles.map((path, index) => ({
+  return presetFiles.map((filename, index) => ({
     id: `preset-${index}`,
-    name: path.split('/').pop().replace('.mp3', ''),
-    path: path,
+    name: filename.replace('.mp3', ''),
+    path: getPresetPath(filename),
     index: index
   }))
 }
@@ -19,32 +29,34 @@ export const getAvailablePresets = async () => {
 // Get a preset by index (cycles through available presets)
 export const getPresetByIndex = (index) => {
   const presetFiles = [
-    '/audio/presets/shinjuku1bansen-jihatu.mp3',
-    '/audio/presets/shinjuku1bansen-sekkin.mp3',
-    '/audio/presets/shinjuku1bansen-totyaku.mp3'
+    'shinjuku1bansen-jihatu.mp3',
+    'shinjuku1bansen-sekkin.mp3',
+    'shinjuku1bansen-totyaku.mp3'
   ]
   
   const cycledIndex = index % presetFiles.length
-  const path = presetFiles[cycledIndex]
+  const filename = presetFiles[cycledIndex]
   
   return {
     id: `preset-${cycledIndex}`,
-    name: path.split('/').pop().replace('.mp3', ''),
-    path: path,
+    name: filename.replace('.mp3', ''),
+    path: getPresetPath(filename),
     index: cycledIndex
   }
 }
 
 // Get all preset files
 export const getAllPresets = () => {
-  return [
-    '/audio/presets/shinjuku1bansen-jihatu.mp3',
-    '/audio/presets/shinjuku1bansen-sekkin.mp3',
-    '/audio/presets/shinjuku1bansen-totyaku.mp3'
-  ].map((path, index) => ({
+  const presetFiles = [
+    'shinjuku1bansen-jihatu.mp3',
+    'shinjuku1bansen-sekkin.mp3',
+    'shinjuku1bansen-totyaku.mp3'
+  ]
+  
+  return presetFiles.map((filename, index) => ({
     id: `preset-${index}`,
-    name: path.split('/').pop().replace('.mp3', ''),
-    path: path,
+    name: filename.replace('.mp3', ''),
+    path: getPresetPath(filename),
     index: index
   }))
 }
