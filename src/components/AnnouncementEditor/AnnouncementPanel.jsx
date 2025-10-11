@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { Play, Pause, X, ChevronDown, ChevronUp, Volume2, VolumeX, SkipBack, SkipForward, List, GitCommitVertical, Building2, TrainFront, ArrowDown, AlertTriangle, Plus, RotateCcw } from 'lucide-react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { Play, Pause, Square, X, ChevronDown, ChevronUp, Volume2, VolumeX, SkipBack, SkipForward, List, GitCommitVertical, Building2, TrainFront, ArrowDown, AlertTriangle, Plus, RotateCcw, Music, Radio, Bell, Clock, MapPin, Info, MessageSquare, Trash2, FileText } from 'lucide-react'
 import { useTranslation } from '../../hooks/useTranslation'
 import { getAllPresets } from '../../data/audioPresets'
 
@@ -18,30 +18,41 @@ const AnnouncementPanel = ({
   lines, 
   announcements, 
   setAnnouncements, 
+  audioAssignments,
+  setAudioAssignments,
+  announcementTypes,
+  setAnnouncementTypes,
+  betweenSegments,
+  setBetweenSegments,
+  uploadedAudios,
+  setUploadedAudios,
   apiKey, 
   language = 'en', 
   isMobile, 
   onClose,
   onStationSelect,
-  selectedStationId 
+  selectedStationId,
+  showStationNumbers = false,
+  onPlayingStationChange
 }) => {
   const { t } = useTranslation(language)
   const [selectedLineId, setSelectedLineId] = useState(null)
-  const [audioAssignments, setAudioAssignments] = useState({})
   const [currentlyPlaying, setCurrentlyPlaying] = useState(null)
   const [isPlayingAll, setIsPlayingAll] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [openDropdowns, setOpenDropdowns] = useState({})
   const [showAIConfig, setShowAIConfig] = useState(null)
+  const [aiGenerationType, setAiGenerationType] = useState('text-to-speech')
+  const [aiTextInput, setAiTextInput] = useState('')
+  const [aiSelectedVoice, setAiSelectedVoice] = useState('21m00Tcm4TlvDq8ikWAM') // Default Rachel voice
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false)
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [masterVolume, setMasterVolume] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
   const [currentStationIndex, setCurrentStationIndex] = useState(0)
   const [showVolumeControl, setShowVolumeControl] = useState(false)
   const [showSpeedControl, setShowSpeedControl] = useState(false)
-  const [uploadedAudios, setUploadedAudios] = useState([])
-  const [announcementTypes, setAnnouncementTypes] = useState({})
-  const [betweenSegments, setBetweenSegments] = useState({})
+  const [showTranscription, setShowTranscription] = useState(false)
   const [hoveredBetweenSlot, setHoveredBetweenSlot] = useState(null)
   const [audioDurations, setAudioDurations] = useState({})
   const [audioRemainingTimes, setAudioRemainingTimes] = useState({})
@@ -58,6 +69,21 @@ const AnnouncementPanel = ({
   useEffect(() => {
     isPlayingAllRef.current = isPlayingAll
   }, [isPlayingAll])
+
+  // Notify parent when playing station changes
+  useEffect(() => {
+    if (onPlayingStationChange && currentlyPlaying) {
+      // Extract station ID from slot ID (format: "station-{stationId}")
+      const match = currentlyPlaying.match(/^station-(.+)$/)
+      if (match) {
+        onPlayingStationChange(match[1], !isPaused)
+      } else {
+        onPlayingStationChange(null, false)
+      }
+    } else if (onPlayingStationChange) {
+      onPlayingStationChange(null, false)
+    }
+  }, [currentlyPlaying, isPaused, onPlayingStationChange])
 
   // Auto-select first line when lines change
   useEffect(() => {
@@ -82,19 +108,36 @@ const AnnouncementPanel = ({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [openDropdowns])
 
-  const selectedLine = lines.find(line => line.id === selectedLineId)
-  const lineStations = selectedLine 
-    ? selectedLine.stations
-        .map(stationId => stations.find(s => s.id === stationId))
-        .filter(Boolean)
-        .filter((station, index, arr) => {
-          // Remove duplicate last station if it's the same as the first
-          if (index === arr.length - 1 && arr.length > 1) {
-            return station.id !== arr[0].id
-          }
-          return true
-        })
-    : []
+  const selectedLine = useMemo(() => 
+    lines.find(line => line.id === selectedLineId),
+    [lines, selectedLineId]
+  )
+  
+  const lineStations = useMemo(() => {
+    if (!selectedLine) return []
+    
+    return selectedLine.stations
+      .map(stationId => stations.find(s => s.id === stationId))
+      .filter(Boolean)
+      .filter((station, index, arr) => {
+        // Remove duplicate last station if it's the same as the first
+        if (index === arr.length - 1 && arr.length > 1) {
+          return station.id !== arr[0].id
+        }
+        return true
+      })
+  }, [selectedLine, stations])
+  
+  // Get line color or default
+  const lineColor = selectedLine?.color || '#ef4444'
+  
+  // Memoized presets to avoid repeated calls
+  const presets = useMemo(() => getAllPresets(), [])
+  
+  // Helper function to get all lines a station belongs to
+  const getStationLines = useCallback((stationId) => {
+    return lines.filter(line => line.stations.includes(stationId))
+  }, [lines])
 
   // Load audio duration when assignment changes
   const loadAudioDuration = (slotId, url) => {
@@ -190,7 +233,6 @@ const AnnouncementPanel = ({
   useEffect(() => {
     if (lineStations.length > 0 && selectedLineId) {
       const newAssignments = {}
-      const presets = getAllPresets()
       
       // Get station IDs for the current line
       const currentLineStationIds = new Set(lineStations.map(s => s.id))
@@ -253,24 +295,115 @@ const AnnouncementPanel = ({
     }
   }, [selectedLineId, lineStations.length])
 
-  const getAnnouncementIcon = (slotId, type = 'station') => {
+  const getAnnouncementIcon = useCallback((slotId, type = 'station', customColor = null) => {
     const customType = announcementTypes[slotId] || type
     
     switch(customType) {
-      case 'central':
-        return <Building2 size={14} className="text-purple-500" />
       case 'station':
-        return <GitCommitVertical size={14} className="text-blue-500" />
-      case 'approach':
+        return <MapPin size={14} style={customColor ? { color: customColor } : {}} className={customColor ? '' : 'text-blue-500'} />
+      case 'centralStation':
+        return <Building2 size={14} style={customColor ? { color: customColor } : {}} className={customColor ? '' : 'text-purple-500'} />
+      case 'arrival':
         return <ArrowDown size={14} className="text-green-500" />
       case 'departure':
         return <TrainFront size={14} className="text-orange-500" />
+      case 'transfer':
+        return <GitCommitVertical size={14} className="text-purple-500" />
+      case 'information':
+        return <Info size={14} className="text-cyan-500" />
+      case 'live':
+        return <MessageSquare size={14} className="text-pink-500" />
       case 'warning':
         return <AlertTriangle size={14} className="text-red-500" />
+      case 'chime':
+        return <Bell size={14} className="text-yellow-500" />
+      case 'music':
+        return <Music size={14} className="text-pink-500" />
+      case 'ambience':
+        return <Radio size={14} className="text-indigo-500" />
       case 'general':
       default:
         return <GitCommitVertical size={14} className="text-gray-400" />
     }
+  }, [announcementTypes])
+
+  const getAnnouncementLabel = useCallback((slotId, type = 'general') => {
+    const customType = announcementTypes[slotId] || type
+    
+    switch(customType) {
+      case 'station':
+        return t('station')
+      case 'centralStation':
+        return t('centralStation')
+      case 'arrival':
+        return t('arrival')
+      case 'departure':
+        return t('departure')
+      case 'transfer':
+        return t('transfer')
+      case 'information':
+        return t('information')
+      case 'live':
+        return t('live')
+      case 'warning':
+        return t('warning')
+      case 'chime':
+        return t('chime')
+      case 'music':
+        return t('music')
+      case 'ambience':
+        return t('ambience')
+      case 'general':
+      default:
+        return t('general')
+    }
+  }, [announcementTypes, t])
+  
+  // Render multi-colored circle for stations on multiple lines
+  const renderStationCircle = (stationId) => {
+    const stationLines = getStationLines(stationId)
+    const colors = stationLines.map(line => line.color)
+    
+    if (colors.length === 0) {
+      return (
+        <div className="relative z-10 w-4 h-4 rounded-full bg-gray-400 dark:bg-gray-500 border-[3px] border-gray-200 dark:border-gray-700" />
+      )
+    }
+    
+    if (colors.length === 1) {
+      return (
+        <div 
+          className="relative z-10 w-4 h-4 rounded-full border-[3px]" 
+          style={{ 
+            backgroundColor: colors[0],
+            borderColor: colors[0]
+          }} 
+        />
+      )
+    }
+    
+    // Multi-color border using conic gradient
+    const segmentAngle = 360 / colors.length
+    const gradientStops = colors.map((color, idx) => {
+      const start = idx * segmentAngle
+      const end = (idx + 1) * segmentAngle
+      return `${color} ${start}deg ${end}deg`
+    }).join(', ')
+    
+    return (
+      <div 
+        className="relative z-10 w-4 h-4 rounded-full"
+        style={{
+          background: `conic-gradient(${gradientStops})`,
+          padding: '3px'
+        }}
+      >
+        <div 
+          className="w-full h-full rounded-full" 
+          style={{ backgroundColor: colors[0] }}
+        />
+      </div>
+    )
   }
 
   const handleStationClick = (stationId) => {
@@ -343,13 +476,113 @@ const AnnouncementPanel = ({
     }
   }
 
-  const handleGenerateAudio = async (slotId, stationName) => {
-    if (!apiKey) return
+  const getLocalizedAudioName = useCallback((assignment, slotId) => {
+    if (!assignment) return ''
     
-    // Placeholder for ElevenLabs API integration
-    console.log('Generate audio for:', stationName)
-    // TODO: Implement actual API call
-  }
+    // For preset audio, show just the name (no prefix)
+    if (assignment.type === 'preset') {
+      return assignment.name
+    }
+    // For uploaded audio, show localized "Uploaded: [name]"
+    if (assignment.type === 'upload') {
+      return `${t('audioTypeUpload')}: ${assignment.name}`
+    }
+    // For generated audio, show localized "AI Voice #[slot number]"
+    if (assignment.type === 'generated') {
+      // Extract slot number from slotId (e.g., "station-0" -> "1", "between-0-1" -> "1")
+      if (!slotId) return `${t('audioTypeGenerated')} #1`
+      
+      const parts = slotId.split('-')
+      const numericPart = parts.find(part => !isNaN(parseInt(part)))
+      const slotNumber = numericPart ? parseInt(numericPart) + 1 : 1
+      
+      return `${t('audioTypeGenerated')} #${slotNumber}`
+    }
+    return assignment.name
+  }, [t])
+
+  const getPresetTextForSlot = useCallback((slotId, stationName) => {
+    const announcementType = announcementTypes[slotId]
+    
+    // Misc icons (chime, music, ambience) have no preset text
+    const miscTypes = ['chime', 'music', 'ambience']
+    if (miscTypes.includes(announcementType)) {
+      return ''
+    }
+    
+    // Generate preset text based on announcement type using translations
+    // Use replaceAll to handle multiple {station} placeholders (e.g., Japanese)
+    switch(announcementType) {
+      case 'arrival':
+        return t('presetArrival').replaceAll('{station}', stationName)
+      case 'departure':
+        return t('presetDeparture').replaceAll('{station}', stationName)
+      case 'transfer':
+        return t('presetTransfer').replaceAll('{station}', stationName)
+      case 'information':
+        return t('presetInformation').replaceAll('{station}', stationName)
+      case 'live':
+        return t('presetLive').replaceAll('{station}', stationName)
+      case 'warning':
+        return t('presetWarning').replaceAll('{station}', stationName)
+      case 'centralStation':
+        return t('presetCentralStation').replaceAll('{station}', stationName)
+      case 'station':
+      default:
+        return `${stationName}`
+    }
+  }, [announcementTypes, t])
+
+  const handleGenerateAudio = useCallback(async (slotId, stationName) => {
+    if (!apiKey || !aiTextInput.trim() || aiGenerationType !== 'text-to-speech') return
+    
+    setIsGeneratingAudio(true)
+    try {
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${aiSelectedVoice}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'xi-api-key': apiKey
+        },
+        body: JSON.stringify({
+          text: aiTextInput,
+          model_id: 'eleven_multilingual_v2',
+          output_format: 'mp3_44100_128'
+        })
+      })
+      
+      if (response.ok) {
+        const audioBlob = await response.blob()
+        const audioUrl = URL.createObjectURL(audioBlob)
+        
+        // Assign the generated audio to the slot
+        setAudioAssignments(prev => ({
+          ...prev,
+          [slotId]: {
+            url: audioUrl,
+            name: `AI: ${aiTextInput.substring(0, 30)}${aiTextInput.length > 30 ? '...' : ''}`,
+            type: 'generated'
+          }
+        }))
+        
+        // Load the audio duration
+        loadAudioDuration(slotId, audioUrl)
+        
+        // Keep the panel open to show preview options
+        // User can preview, regenerate, or close
+      } else {
+        console.error('Failed to generate audio:', response.status)
+        const error = await response.text()
+        console.error('Error details:', error)
+        alert('Failed to generate audio. Please check your API key and try again.')
+      }
+    } catch (error) {
+      console.error('Error generating audio:', error)
+      alert('Error generating audio. Please try again.')
+    } finally {
+      setIsGeneratingAudio(false)
+    }
+  }, [apiKey, aiTextInput, aiSelectedVoice, aiGenerationType, loadAudioDuration])
 
   const handleSelectPreset = (slotId, preset) => {
     const url = preset.path || preset.url
@@ -373,9 +606,11 @@ const AnnouncementPanel = ({
     setShowAIConfig(null)
   }
 
-  const handleShowAIConfig = (slotId) => {
+  const handleShowAIConfig = (slotId, stationName = '') => {
     setShowAIConfig(slotId)
     setOpenDropdowns({})
+    const presetText = getPresetTextForSlot(slotId, stationName)
+    setAiTextInput(presetText)
   }
 
   const handleRemoveAudio = (slotId) => {
@@ -579,18 +814,18 @@ const AnnouncementPanel = ({
       } else if (!currentlyPlaying || !queue.includes(currentlyPlaying)) {
         // Start from beginning if nothing is playing or current isn't in queue
         // Clean up any existing audio
-        if (audioRef.current) {
-          audioRef.current.pause()
-          audioRef.current = null
-        }
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
         setCurrentQueueIndex(0)
         setIsPlayingAll(true)
         setIsPaused(false)
         // Use setTimeout to ensure state is set before starting playback
         setTimeout(() => playQueueFromIndex(0), 0)
-      } else {
+    } else {
         // Audio is already playing, so just mark queue as active
-        setIsPlayingAll(true)
+      setIsPlayingAll(true)
         setIsPaused(false)
         startQueueProgressTracking()
       }
@@ -690,7 +925,7 @@ const AnnouncementPanel = ({
       
       if (assignment?.url) {
         setCurrentQueueIndex(i)
-        setCurrentlyPlaying(slotId)
+          setCurrentlyPlaying(slotId)
         
         await new Promise((resolve) => {
           const audio = new Audio(assignment.url)
@@ -772,11 +1007,10 @@ const AnnouncementPanel = ({
     const isDropdownOpen = openDropdowns[slotId]
     const isAIConfigOpen = showAIConfig === slotId
     const isTypeDropdownOpen = openDropdowns[`${slotId}-type`]
-    const presets = getAllPresets()
     const slotType = slotId.startsWith('between') || isExtraSegment ? 'general' : 'station'
     const isStation = !slotId.startsWith('between') && !isExtraSegment
 
-  return (
+    return (
       <div 
         className={`border rounded-lg transition-all overflow-visible ${
           isPlayingAndNotPaused 
@@ -794,81 +1028,185 @@ const AnnouncementPanel = ({
             if (stationId) handleStationClick(stationId)
           }}
         >
-          {/* Top row: Icon, Label, Remove button, Duration */}
+          {/* Top row: Prefix space + Icon/Number, Label, Remove button, Duration */}
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
-              {/* Only show icon selector for in-between slots */}
-              {!isStation && (
-                <div className="relative flex-shrink-0" ref={el => dropdownRefs.current[`${slotId}-type`] = el}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      toggleDropdown(`${slotId}-type`)
-                    }}
-                    className="flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-600 rounded p-0.5 transition-colors"
-                  >
-                    {getAnnouncementIcon(slotId, slotType)}
-                  </button>
-                  
-                  {isTypeDropdownOpen && (
-                    <div className="absolute left-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleTypeChange(slotId, 'general')
-                          setOpenDropdowns({})
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
-                      >
-                        <GitCommitVertical size={14} className="text-gray-400" />
-                        <span className="text-gray-700 dark:text-gray-300">General</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleTypeChange(slotId, 'approach')
-                          setOpenDropdowns({})
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
-                      >
-                        <ArrowDown size={14} className="text-green-500" />
-                        <span className="text-gray-700 dark:text-gray-300">Approach</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleTypeChange(slotId, 'departure')
-                          setOpenDropdowns({})
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
-                      >
-                        <TrainFront size={14} className="text-orange-500" />
-                        <span className="text-gray-700 dark:text-gray-300">Departure</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleTypeChange(slotId, 'warning')
-                          setOpenDropdowns({})
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
-                      >
-                        <AlertTriangle size={14} className="text-red-500" />
-                        <span className="text-gray-700 dark:text-gray-300">Warning</span>
-                      </button>
-                    </div>
-                  )}
+              {/* Prefix space for station number OR icon selector */}
+              <div className="w-5 flex items-center justify-center flex-shrink-0">
+                {showStationNumbers && isStation ? (
+                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                    {slotIndex / 2 + 1}
+                  </span>
+                ) : (
+                  <div className="relative" ref={el => dropdownRefs.current[`${slotId}-type`] = el}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleDropdown(`${slotId}-type`)
+                      }}
+                      className="flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-600 rounded p-0.5 transition-colors"
+                    >
+                      {getAnnouncementIcon(slotId, slotType, isStation ? lineColor : null)}
+                    </button>
+                    
+                    {isTypeDropdownOpen && (
+                      <div className="absolute left-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1 min-w-[160px]">
+                        {isStation ? (
+                          <>
+                            <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider pointer-events-none">
+                              {t('stationTypes')}
+            </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                                handleTypeChange(slotId, 'station')
+                                setOpenDropdowns({})
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
+                            >
+                              <MapPin size={14} className="text-blue-500" />
+                              <span className="text-gray-700 dark:text-gray-300">{t('station')}</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleTypeChange(slotId, 'centralStation')
+                                setOpenDropdowns({})
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
+                            >
+                              <Building2 size={14} className="text-purple-500" />
+                              <span className="text-gray-700 dark:text-gray-300">{t('centralStation')}</span>
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider pointer-events-none">
+                              {t('announcements')}
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleTypeChange(slotId, 'general')
+                                setOpenDropdowns({})
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
+                            >
+                              <GitCommitVertical size={14} className="text-gray-400" />
+                              <span className="text-gray-700 dark:text-gray-300">{t('general')}</span>
+              </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleTypeChange(slotId, 'arrival')
+                                setOpenDropdowns({})
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
+                            >
+                              <ArrowDown size={14} className="text-green-500" />
+                              <span className="text-gray-700 dark:text-gray-300">{t('arrival')}</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleTypeChange(slotId, 'departure')
+                                setOpenDropdowns({})
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
+                            >
+                              <TrainFront size={14} className="text-orange-500" />
+                              <span className="text-gray-700 dark:text-gray-300">{t('departure')}</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleTypeChange(slotId, 'transfer')
+                                setOpenDropdowns({})
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
+                            >
+                              <GitCommitVertical size={14} className="text-purple-500" />
+                              <span className="text-gray-700 dark:text-gray-300">{t('transfer')}</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleTypeChange(slotId, 'information')
+                                setOpenDropdowns({})
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
+                            >
+                              <Info size={14} className="text-cyan-500" />
+                              <span className="text-gray-700 dark:text-gray-300">{t('information')}</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleTypeChange(slotId, 'live')
+                                setOpenDropdowns({})
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
+                            >
+                              <MessageSquare size={14} className="text-pink-500" />
+                              <span className="text-gray-700 dark:text-gray-300">{t('live')}</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleTypeChange(slotId, 'warning')
+                                setOpenDropdowns({})
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
+                            >
+                              <AlertTriangle size={14} className="text-red-500" />
+                              <span className="text-gray-700 dark:text-gray-300">{t('warning')}</span>
+                            </button>
+                            <div className="border-t border-gray-200 dark:border-gray-600 my-1"></div>
+                            <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider pointer-events-none">
+                              {t('misc')}
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleTypeChange(slotId, 'chime')
+                                setOpenDropdowns({})
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
+                            >
+                              <Bell size={14} className="text-yellow-500" />
+                              <span className="text-gray-700 dark:text-gray-300">{t('chime')}</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleTypeChange(slotId, 'music')
+                                setOpenDropdowns({})
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
+                            >
+                              <Music size={14} className="text-pink-500" />
+                              <span className="text-gray-700 dark:text-gray-300">{t('music')}</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleTypeChange(slotId, 'ambience')
+                                setOpenDropdowns({})
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm"
+                            >
+                              <Radio size={14} className="text-indigo-500" />
+                              <span className="text-gray-700 dark:text-gray-300">{t('ambience')}</span>
+                            </button>
+                          </>
+            )}
+          </div>
+                    )}
                 </div>
-              )}
+                )}
+              </div>
               
               <span className="font-medium text-sm text-gray-800 dark:text-gray-200 flex-shrink-0">{label}</span>
-              
-              {/* Playing indicator */}
-              {isPlayingAndNotPaused && (
-                <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500 text-white rounded">
-                  <SoundWave />
-                </div>
-              )}
               
               {/* Remove button for extra segments or main between slots */}
               {((isExtraSegment && parentSlotId) || (!isStation && !isExtraSegment && assignment)) && (
@@ -887,8 +1225,8 @@ const AnnouncementPanel = ({
                   <X size={12} className="text-red-500" />
                 </button>
               )}
-            </div>
-            
+              </div>
+              
             {/* Duration counter - aligned right */}
             {assignment && audioDurations[slotId] && (
               <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 flex-shrink-0 font-medium">
@@ -900,16 +1238,25 @@ const AnnouncementPanel = ({
             )}
           </div>
 
-          {/* Bottom row: Dropdown and Play button */}
+          {/* Bottom row: Prefix space + Dropdown and Play button */}
           <div className="flex items-center gap-2">
+            {/* Prefix space for animated audio SVG */}
+            <div className="w-5 flex items-center justify-center flex-shrink-0">
+              {isPlayingAndNotPaused && (
+                <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500 text-white rounded">
+                  <SoundWave />
+                </div>
+              )}
+            </div>
+            
             <div className="flex-1 relative" ref={el => dropdownRefs.current[slotId] = el}>
-              <input
-                ref={el => fileInputRefs.current[slotId] = el}
-                type="file"
-                accept="audio/*"
-                onChange={(e) => handleFileUpload(slotId, e)}
-                className="hidden"
-              />
+                <input
+                  ref={el => fileInputRefs.current[slotId] = el}
+                  type="file"
+                  accept="audio/*"
+                  onChange={(e) => handleFileUpload(slotId, e)}
+                  className="hidden"
+                />
               
               <button
                 onClick={(e) => {
@@ -919,7 +1266,7 @@ const AnnouncementPanel = ({
                 className="w-full flex items-center justify-between gap-2 px-2 py-1.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded border border-gray-200 dark:border-gray-600 transition-colors text-xs"
               >
                 <span className="truncate text-gray-700 dark:text-gray-300">
-                  {assignment ? assignment.name : 'Select audio...'}
+                  {assignment ? getLocalizedAudioName(assignment, slotId) : 'Select audio...'}
                 </span>
                 {isDropdownOpen ? (
                   <ChevronUp size={14} className="flex-shrink-0 text-gray-500" />
@@ -930,41 +1277,41 @@ const AnnouncementPanel = ({
 
               {isDropdownOpen && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      fileInputRefs.current[slotId]?.click()
-                    }}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    fileInputRefs.current[slotId]?.click()
+                  }}
                     className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700"
-                  >
+                >
                     <span className="text-blue-600 dark:text-blue-400">+</span>
                     <span>Upload Audio</span>
-                  </button>
+                </button>
                   
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleShowAIConfig(slotId)
-                    }}
-                    disabled={!apiKey}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                      handleShowAIConfig(slotId, label)
+                  }}
+                  disabled={!apiKey}
                     className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
+                >
                     <span className="text-blue-600 dark:text-blue-400">+</span>
                     <span>Generate with AI</span>
-                  </button>
+                </button>
 
                   <div className="py-1">
                     {uploadedAudios.map((uploaded) => (
-                      <button
+                <button
                         key={uploaded.id}
-                        onClick={(e) => {
-                          e.stopPropagation()
+                  onClick={(e) => {
+                    e.stopPropagation()
                           handleSelectPreset(slotId, { path: uploaded.url, name: uploaded.name })
-                        }}
+                  }}
                         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left text-sm text-gray-700 dark:text-gray-300"
-                      >
+                >
                         <span className="truncate">{uploaded.name}</span>
-                      </button>
+                </button>
                     ))}
                     {presets.map((preset) => (
         <button
@@ -978,9 +1325,9 @@ const AnnouncementPanel = ({
                         <span className="truncate">{preset.name}</span>
         </button>
                     ))}
-                  </div>
-                </div>
-              )}
+              </div>
+            </div>
+          )}
             </div>
 
             {assignment && (
@@ -1002,28 +1349,139 @@ const AnnouncementPanel = ({
           </div>
 
           {isAIConfigOpen && (
-            <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">AI Generation Options</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleGenerateAudio(slotId, label)
-                    setShowAIConfig(null)
-                  }}
-                  className="flex-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition-colors"
+            <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 max-w-full overflow-hidden">
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-3">AI Generation</p>
+              
+              {/* Generation Type Radio Buttons */}
+              <div className="space-y-2 mb-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                    type="radio"
+                    name="generationType"
+                    value="text-to-speech"
+                    checked={aiGenerationType === 'text-to-speech'}
+                    onChange={(e) => setAiGenerationType(e.target.value)}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Text-to-Speech</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-not-allowed opacity-50">
+                  <input
+                    type="radio"
+                    name="generationType"
+                    value="sound-effects"
+                    disabled
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Sound Effects (Coming Soon)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-not-allowed opacity-50">
+                  <input
+                    type="radio"
+                    name="generationType"
+                    value="music"
+                    disabled
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Music (Coming Soon)</span>
+                </label>
+              </div>
+
+              {/* Text-to-Speech Form */}
+              {aiGenerationType === 'text-to-speech' && (
+                <div className="space-y-3 max-w-full">
+                  <div>
+                    <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Text</label>
+                    <textarea
+                      value={aiTextInput}
+                      onChange={(e) => setAiTextInput(e.target.value)}
+                      placeholder="Enter the text to convert to speech..."
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      rows={3}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Voice</label>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 py-1.5 italic">
+                      Using default voice (Rachel)
+                    </div>
+                  </div>
+
+                  {/* Audio Preview (if generated) */}
+                  {assignment && assignment.type === 'generated' && !isGeneratingAudio && (
+                    <div className="p-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/50">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{getLocalizedAudioName(assignment, slotId)}</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                              if (currentlyPlaying === slotId) {
+                                handleStop()
+                              } else {
+                                handlePlayAudio(slotId)
+                              }
+                            }}
+                            className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                            title={currentlyPlaying === slotId ? 'Stop' : 'Play'}
+                          >
+                            {currentlyPlaying === slotId ? (
+                              <Pause size={16} className="text-gray-700 dark:text-gray-300" />
+                            ) : (
+                              <Play size={16} className="text-gray-700 dark:text-gray-300" />
+                            )}
+              </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleRemoveAudio(slotId)
+                            }}
+                            className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                            title="Remove"
+                          >
+                            <X size={16} className="text-gray-700 dark:text-gray-300" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 mt-3 pt-3 border-t border-blue-200 dark:border-blue-700">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleGenerateAudio(slotId, label)
+                }}
+                  disabled={isGeneratingAudio || !aiTextInput.trim()}
+                  className="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Generate
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
+                  {isGeneratingAudio ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    assignment && assignment.type === 'generated' ? 'Regenerate' : 'Generate'
+                  )}
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
                     setShowAIConfig(null)
-                  }}
-                  className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded text-xs transition-colors"
-                >
+                    setAiTextInput('')
+                }}
+                  disabled={isGeneratingAudio}
+                  className="px-3 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded text-sm transition-colors disabled:opacity-50"
+              >
                   Cancel
-                </button>
+              </button>
               </div>
             </div>
           )}
@@ -1037,7 +1495,7 @@ const AnnouncementPanel = ({
       <div className="p-3 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t('audioQueue')}</h2>
+          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t('audioQueue')}</h2>
             {getTotalDuration() > 0 && (
               <span className="text-xs px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
                 {formatTime(getTotalDuration())}
@@ -1072,7 +1530,7 @@ const AnnouncementPanel = ({
           <>
             {/* Master Control Panel */}
             <div className="flex items-center gap-1 mb-1.5">
-              <button
+        <button
                 onClick={() => setShowVolumeControl(!showVolumeControl)}
                 className="flex items-center justify-center gap-0.5 p-1.5 rounded-lg transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 title={t('toggleVolume')}
@@ -1082,8 +1540,8 @@ const AnnouncementPanel = ({
                   <ChevronUp size={12} className="opacity-60" />
                 ) : (
                   <ChevronDown size={12} className="opacity-60" />
-                )}
-              </button>
+            )}
+        </button>
               
               <button
                 onClick={handleSkipPrev}
@@ -1120,6 +1578,18 @@ const AnnouncementPanel = ({
                 ) : (
                   <ChevronDown size={12} className="opacity-60" />
                 )}
+              </button>
+
+              <button
+                onClick={() => setShowTranscription(!showTranscription)}
+                className={`flex items-center justify-center p-1.5 rounded-lg transition-colors ${
+                  showTranscription 
+                    ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+                title={t('transcription')}
+              >
+                <FileText size={16} />
               </button>
             </div>
 
@@ -1240,67 +1710,75 @@ const AnnouncementPanel = ({
           </div>
         ) : (
           <div className="flex gap-2">
-            {/* Timeline visualization column */}
-            <div className="flex flex-col items-center flex-shrink-0" style={{ width: '20px' }}>
-              {lineStations.map((station, index) => {
+            {/* Audio slots column with integrated timeline markers */}
+            <div className="flex-1 min-w-0 overflow-visible">
+            {lineStations.map((station, index) => {
+              let slotIndex = index * 2
                 const stationSlotId = `station-${station.id}`
                 const betweenSlotId = `between-${station.id}-${lineStations[index + 1]?.id}`
                 const isLastStation = index === lineStations.length - 1
+                const isFirstStation = index === 0
                 
-                // Calculate line height based on between-station content
-                const hasMainBetween = audioAssignments[betweenSlotId]
-                const extraSegmentCount = (betweenSegments[betweenSlotId] || []).length
-                const betweenItemCount = (hasMainBetween ? 1 : 0) + extraSegmentCount
-                const lineHeight = betweenItemCount > 0 ? (betweenItemCount * 50 + 28) : 76
-                
-                return (
-                  <div key={`timeline-${station.id}`} className="flex flex-col items-center w-full">
-                    {/* Station circle - aligned with station slot */}
-                    <div className="flex items-center justify-center" style={{ height: '44px' }}>
-                      <div className="w-3 h-3 rounded-full bg-white dark:bg-gray-800 border-2 border-gray-400 dark:border-gray-500" />
-                    </div>
-                    
-                    {/* Connecting line to next station (skip for last station) */}
-                    {!isLastStation && (
-                      <div className="w-0.5 bg-gray-300 dark:bg-gray-600" style={{ height: `${lineHeight}px` }} />
-                    )}
-                  </div>
-                )
-              })}
-              
-              {/* Loop indicator - separate from stations */}
-              {lineStations.length > 1 && (
-                <>
-                  <div className="w-0.5 bg-gray-300 dark:bg-gray-600" style={{ height: '30px' }} />
-                  <div className="w-3 h-3 rounded-full bg-white dark:bg-gray-800 border-2 border-gray-400 dark:border-gray-500 opacity-50" />
-                </>
-        )}
-      </div>
-
-            {/* Audio slots column */}
-            <div className="flex-1 min-w-0 space-y-1.5 overflow-visible">
-              {lineStations.map((station, index) => {
-                let slotIndex = index * 2
-                const stationSlotId = `station-${station.id}`
-                const betweenSlotId = `between-${station.id}-${lineStations[index + 1]?.id}`
-                const isLastStation = index === lineStations.length - 1
-                
-                return (
+              return (
                   <div key={`slot-group-${station.id}`}>
-                    {renderAudioSlot(
-                      stationSlotId,
-                      `${index + 1}. ${station.name}`,
-                      station.id,
-                      slotIndex
-                    )}
-                    
-                    {index < lineStations.length - 1 && (
-                      <div 
-                        className="relative my-3 pl-8 pr-0"
-                        onMouseEnter={() => setHoveredBetweenSlot(betweenSlotId)}
-                        onMouseLeave={() => setHoveredBetweenSlot(null)}
-                      >
-                        <div className="absolute left-3 top-0 bottom-0 w-0.5 border-l-2 border-dashed border-gray-300 dark:border-gray-600" />
+                    {/* Station row with aligned circle */}
+                    <div className="flex gap-2">
+                      {/* Timeline marker - circle centered with station box, line passes through */}
+                      <div className="relative flex items-center justify-center flex-shrink-0" style={{ width: '20px' }}>
+                        {/* Continuous line passing through */}
+                        {!isFirstStation && (
+                          <div 
+                            className="absolute w-0.5 left-1/2 -translate-x-1/2" 
+                            style={{ 
+                              bottom: '50%', 
+                              top: 0,
+                              backgroundColor: lineColor,
+                              opacity: 0.6
+                            }} 
+                          />
+                        )}
+                        {!isLastStation && (
+                          <div 
+                            className="absolute w-0.5 left-1/2 -translate-x-1/2" 
+                            style={{ 
+                              top: '50%', 
+                              bottom: 0,
+                              backgroundColor: lineColor,
+                              opacity: 0.6
+                            }} 
+                          />
+                        )}
+                        
+                        {/* Circle on top of line */}
+                        {renderStationCircle(station.id)}
+                      </div>
+                      
+                      {/* Station slot box */}
+                      <div className="flex-1 min-w-0">
+                  {renderAudioSlot(
+                          stationSlotId,
+                          station.name,
+                    station.id,
+                    slotIndex
+                  )}
+                      </div>
+                    </div>
+                  
+                      {/* Between content with line */}
+                  {index < lineStations.length - 1 && (
+                        <div className="flex gap-2">
+                          {/* Timeline line */}
+                          <div className="flex flex-col items-center flex-shrink-0" style={{ width: '20px' }}>
+                            <div className="w-0.5 flex-1" style={{ backgroundColor: lineColor, opacity: 0.6 }} />
+                          </div>
+                        
+                        {/* Between content */}
+                        <div 
+                          className="relative flex-1 my-3 pl-8 pr-0"
+                          onMouseEnter={() => setHoveredBetweenSlot(betweenSlotId)}
+                          onMouseLeave={() => setHoveredBetweenSlot(null)}
+                        >
+                      <div className="absolute left-3 top-0 bottom-0 w-0.5 border-l-2 border-dashed border-gray-300 dark:border-gray-600" />
                         
                         {/* Add segment buttons on the dashed line */}
                         {hoveredBetweenSlot === betweenSlotId && (
@@ -1336,11 +1814,11 @@ const AnnouncementPanel = ({
                         )}
                         
                         <div className="space-y-1.5">
-                          {renderAudioSlot(
+                      {renderAudioSlot(
                             betweenSlotId,
-                            `↓`,
-                            null,
-                            slotIndex + 1
+                            getAnnouncementLabel(betweenSlotId, 'general'),
+                        null,
+                        slotIndex + 1
                           )}
                           
                           {/* Extra between segments */}
@@ -1348,7 +1826,7 @@ const AnnouncementPanel = ({
                             <div key={segmentId}>
                               {renderAudioSlot(
                                 segmentId,
-                                `↓`,
+                                getAnnouncementLabel(segmentId, 'general'),
                                 null,
                                 slotIndex + 1,
                                 true,
@@ -1357,19 +1835,23 @@ const AnnouncementPanel = ({
                             </div>
                           ))}
                         </div>
+                        </div>
                       </div>
                     )}
                     
                     {/* Loop indicator for last station */}
                     {isLastStation && lineStations.length > 1 && (
-                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 py-2 px-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 mt-3">
-                        <RotateCcw size={12} className="flex-shrink-0" />
-                        <span>Returns to {lineStations[0].name}</span>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                      <div className="flex gap-2">
+                        <div className="flex-shrink-0" style={{ width: '20px' }} />
+                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 py-2 px-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 mt-3">
+                          <RotateCcw size={12} className="flex-shrink-0" />
+                          <span>Returns to {lineStations[0].name}</span>
+                        </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
             </div>
           </div>
         )}

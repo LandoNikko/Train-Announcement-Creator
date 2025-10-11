@@ -96,10 +96,10 @@ export const trainPresets = [
     name: 'Simple Demo',
     description: 'A simple 4-station demo route',
     stations: [
-      { id: 'station-1', x: 300, y: 200, name: 'Central Station', color: '#3b82f6' },
-      { id: 'station-2', x: 450, y: 200, name: 'North Station', color: '#ef4444' },
-      { id: 'station-3', x: 450, y: 350, name: 'East Station', color: '#10b981' },
-      { id: 'station-4', x: 300, y: 350, name: 'South Station', color: '#f59e0b' },
+      { id: 'station-1', x: 300, y: 200, name: 'Central Station', color: '#8b5cf6' },
+      { id: 'station-2', x: 450, y: 200, name: 'North Station', color: '#8b5cf6' },
+      { id: 'station-3', x: 450, y: 350, name: 'East Station', color: '#8b5cf6' },
+      { id: 'station-4', x: 300, y: 350, name: 'South Station', color: '#8b5cf6' },
     ],
     lines: [
       {

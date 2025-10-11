@@ -1,4 +1,4 @@
-const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false, onClick, onMouseDown, allStations = [] }) => {
+const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false, isPlaying = false, onClick, onMouseDown, allStations = [] }) => {
   const fontSize = 14
   const textPadding = 10
   
@@ -89,10 +89,10 @@ const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false,
           cy={station.y}
           r="16"
           fill="none"
-          stroke="#3b82f6"
+          stroke="rgba(156, 163, 175, 0.6)"
           strokeWidth="3"
-          opacity="0.6"
-          className="animate-pulse"
+          opacity="0.8"
+          className={isPlaying ? "animate-[pulse_1s_ease-in-out_infinite] dark:stroke-white/40" : "dark:stroke-white/40"}
         />
       )}
       <circle
@@ -100,9 +100,9 @@ const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false,
         cy={station.y}
         r={isDragging ? "10" : "8"}
         fill={isSelected ? '#fbbf24' : station.color}
-        stroke={isHighlighted ? '#3b82f6' : 'white'}
+        stroke={isHighlighted ? 'rgba(156, 163, 175, 0.8)' : 'white'}
         strokeWidth={isHighlighted ? '3' : '2'}
-        className="transition-all hover:r-10"
+        className="transition-all hover:r-10 dark:[stroke:rgba(255,255,255,0.5)]"
       />
       <circle
         cx={station.x}

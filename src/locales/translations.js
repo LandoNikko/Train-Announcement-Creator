@@ -45,6 +45,16 @@ export const translations = {
     save: 'Save',
     delete: 'Delete',
     
+    // Line Editor
+    editLine: 'Edit Line',
+    lineName: 'Line Name',
+    lineColor: 'Line Color',
+    
+    // Unified Editor
+    editor: 'Editor',
+    name: 'Name',
+    color: 'Color',
+    
     // Preset Sidebar
     trainLinePresets: 'Train Line Presets',
     loadPresetHint: 'Load a preset to get started',
@@ -80,11 +90,22 @@ export const translations = {
     noAudioAssigned: 'No audio assigned',
     playAudio: 'Play',
     removeAudio: 'Remove',
+    audioTypePreset: 'Preset',
+    audioTypeUpload: 'Uploaded',
+    audioTypeGenerated: 'AI Voice',
+    presetArrival: 'We are now arriving at {station}. Please prepare to exit.',
+    presetDeparture: 'This train is departing from {station}. Next stop: [Next Station Name].',
+    presetTransfer: 'Transfer here for other lines. This is {station}.',
+    presetInformation: 'Welcome to {station}. Please mind the gap between the train and the platform.',
+    presetLive: 'Attention passengers. Live announcement for {station}.',
+    presetWarning: 'Attention. Important safety announcement for {station}.',
+    presetCentralStation: 'Now arriving at {station}, the central station. Transfer available for all lines.',
     playAll: 'Play All',
     stopPlayback: 'Stop',
     previousStation: 'Previous Station',
     nextStation: 'Next Station',
     playPause: 'Play/Pause',
+    transcription: 'Transcription',
     playAllSequence: 'Play All',
     cycleSpeed: 'Cycle Speed',
     toggleVolume: 'Toggle Volume',
@@ -101,7 +122,22 @@ export const translations = {
     getApiKeyFrom: 'Get your API key from',
     
     // Station defaults
-    station: 'Station'
+    station: 'Station',
+    
+    // Announcement Types
+    stationTypes: 'Station Types',
+    centralStation: 'Central Station',
+    arrival: 'Arrival',
+    departure: 'Departure',
+    transfer: 'Transfer',
+    information: 'Information',
+    live: 'Live',
+    warning: 'Warning',
+    general: 'General',
+    misc: 'Misc',
+    chime: 'Chime',
+    music: 'Music',
+    ambience: 'Ambience'
   },
   ja: {
     // Toolbar
@@ -149,6 +185,16 @@ export const translations = {
     save: '保存',
     delete: '削除',
     
+    // Line Editor
+    editLine: '路線を編集',
+    lineName: '路線名',
+    lineColor: '路線の色',
+    
+    // Unified Editor
+    editor: 'エディター',
+    name: '名前',
+    color: '色',
+    
     // Preset Sidebar
     trainLinePresets: '路線プリセット',
     loadPresetHint: 'プリセットを読み込んで開始',
@@ -184,11 +230,22 @@ export const translations = {
     noAudioAssigned: 'オーディオ未割り当て',
     playAudio: '再生',
     removeAudio: '削除',
+    audioTypePreset: 'プリセット',
+    audioTypeUpload: 'アップロード済み',
+    audioTypeGenerated: 'AI音声',
+    presetArrival: 'まもなく、{station}、{station}です。出口は右側です。',
+    presetDeparture: '{station}を発車いたします。次は、[次の駅名]です。',
+    presetTransfer: 'お乗り換えの方は、{station}です。',
+    presetInformation: '{station}にご到着です。足元にご注意ください。',
+    presetLive: 'お客様にお知らせいたします。{station}からのご案内です。',
+    presetWarning: 'ご注意ください。{station}からの重要なお知らせです。',
+    presetCentralStation: 'まもなく、{station}、{station}です。各線にお乗り換えいただけます。',
     playAll: 'すべて再生',
     stopPlayback: '停止',
     previousStation: '前の駅',
     nextStation: '次の駅',
     playPause: '再生/一時停止',
+    transcription: '文字起こし',
     playAllSequence: 'すべて再生',
     cycleSpeed: '速度切替',
     toggleVolume: '音量切替',
@@ -205,7 +262,22 @@ export const translations = {
     getApiKeyFrom: 'APIキーを取得：',
     
     // Station defaults
-    station: '駅'
+    station: '駅',
+    
+    // Announcement Types
+    stationTypes: '駅種別',
+    centralStation: '主要駅',
+    arrival: '到着',
+    departure: '発車',
+    transfer: '乗換',
+    information: '案内',
+    live: '肉声放送',
+    warning: '警告',
+    general: '一般',
+    misc: 'その他',
+    chime: 'チャイム',
+    music: '音楽',
+    ambience: '環境音'
   }
 }
 

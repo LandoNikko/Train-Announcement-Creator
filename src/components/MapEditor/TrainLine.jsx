@@ -1,6 +1,6 @@
 import { line, curveCatmullRom, curveLinear, curveCardinal } from 'd3-shape'
 
-const TrainLine = ({ line: trainLine, stations, lineStyle = 'smooth' }) => {
+const TrainLine = ({ line: trainLine, stations, lineStyle = 'smooth', onClick, isEditing = false }) => {
   const lineStations = trainLine.stations
     .map(id => stations.find(s => s.id === id))
     .filter(Boolean)
@@ -106,15 +106,27 @@ const TrainLine = ({ line: trainLine, stations, lineStyle = 'smooth' }) => {
   const pathData = generatePath()
 
   return (
-    <g>
+    <g onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default' }}>
+      {/* Invisible wider path for easier clicking */}
+      <path
+        d={pathData}
+        fill="none"
+        stroke="transparent"
+        strokeWidth="20"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ pointerEvents: onClick ? 'stroke' : 'none' }}
+      />
+      {/* Visible line */}
       <path
         d={pathData}
         fill="none"
         stroke={trainLine.color}
-        strokeWidth="4"
+        strokeWidth={isEditing ? "6" : "4"}
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity="0.8"
+        opacity={isEditing ? "1" : "0.8"}
+        style={{ pointerEvents: 'none' }}
       />
     </g>
   )

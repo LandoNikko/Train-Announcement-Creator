@@ -1,9 +1,9 @@
 import { useRef, useState, useEffect } from 'react'
-import { Crosshair, CheckCircle } from 'lucide-react'
+import { Crosshair, CheckCircle, GitCommitVertical } from 'lucide-react'
 import GridCanvas from './GridCanvas'
 import StationMarker from './StationMarker'
 import TrainLine from './TrainLine'
-import StationEditor from './StationEditor'
+import LineStationEditor from './LineStationEditor'
 import { useTranslation } from '../../hooks/useTranslation'
 import { getNextStationName } from '../../data/stationNames'
 
@@ -21,13 +21,16 @@ const MapEditor = ({
   lineStyle = 'smooth',
   showStationNumbers = false,
   isMobile = false,
-  selectedStationId = null
+  selectedStationId = null,
+  playingStationId = null,
+  isStationPlaying = false
 }) => {
   const { t } = useTranslation(language)
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1200, height: 800 })
   const [isPanning, setIsPanning] = useState(false)
   const [panStart, setPanStart] = useState({ x: 0, y: 0 })
   const [editingStation, setEditingStation] = useState(null)
+  const [editingLine, setEditingLine] = useState(null)
   const [draggingStation, setDraggingStation] = useState(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [hoverGridPoint, setHoverGridPoint] = useState(null)
@@ -236,6 +239,38 @@ const MapEditor = ({
     
     setLines(updatedLines)
     setEditingStation(null)
+  }
+
+  const handleLineUpdate = (updatedLine, shouldUpdateStationColors = false) => {
+    const updatedLines = lines.map(line => 
+      line.id === updatedLine.id ? updatedLine : line
+    )
+    
+    // If color changed, update all connected stations atomically
+    if (shouldUpdateStationColors && updatedLine.stations) {
+      const updatedStations = stations.map(station => 
+        updatedLine.stations.includes(station.id) 
+          ? { ...station, color: updatedLine.color }
+          : station
+      )
+      setStations(updatedStations)
+    }
+    
+    setLines(updatedLines)
+    setEditingLine(updatedLine)
+  }
+
+  const handleLineDelete = (lineId) => {
+    setLines(lines.filter(l => l.id !== lineId))
+    setEditingLine(null)
+  }
+
+  const handleLineClick = (line, e) => {
+    if (currentTool === 'select') {
+      e.stopPropagation()
+      setEditingLine(line)
+      setEditingStation(null)
+    }
   }
 
   const handleMouseDown = (e) => {
@@ -451,6 +486,8 @@ const MapEditor = ({
             line={line}
             stations={stations}
             lineStyle={lineStyle}
+            onClick={(e) => handleLineClick(line, e)}
+            isEditing={editingLine?.id === line.id}
           />
         ))}
         
@@ -482,6 +519,7 @@ const MapEditor = ({
               isSelected={selectedStations.some(s => s.id === station.id)}
               isDragging={draggingStation?.id === station.id}
               isHighlighted={selectedStationId === station.id}
+              isPlaying={playingStationId === station.id && isStationPlaying}
               onClick={(e) => handleStationClick(station, e)}
               onMouseDown={(e) => handleStationMouseDown(station, e)}
               allStations={allDisplayStations}
@@ -505,14 +543,42 @@ const MapEditor = ({
         ))}
       </svg>
 
-      {editingStation && (
-        <StationEditor
+      {(editingStation || editingLine) && (
+        <LineStationEditor
           station={editingStation}
-          onUpdate={handleStationUpdate}
-          onDelete={handleStationDelete}
-          onClose={() => setEditingStation(null)}
+          line={editingLine}
+          lines={lines}
+          stations={stations}
+          onUpdateStation={handleStationUpdate}
+          onUpdateLine={handleLineUpdate}
+          onDeleteStation={handleStationDelete}
+          onDeleteLine={handleLineDelete}
+          onClose={() => {
+            setEditingStation(null)
+            setEditingLine(null)
+          }}
           language={language}
         />
+      )}
+
+      {lines.length > 0 && (
+        <div className="absolute top-4 left-4 flex flex-col gap-2">
+          {lines.map((line) => (
+            <div 
+              key={line.id}
+              className="flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-md"
+            >
+              <GitCommitVertical 
+                size={16} 
+                style={{ color: line.color }}
+                className="flex-shrink-0"
+              />
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                {line.name}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
 
       <div className="absolute bottom-4 left-4 flex items-center gap-3">

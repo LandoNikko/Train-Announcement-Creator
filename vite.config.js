@@ -1,10 +1,19 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  base: process.env.NODE_ENV === 'production' ? '/Train-Announcement-Creator/' : '/',
+  base: mode === 'production' ? '/Train-Announcement-Creator/' : '/',
   build: {
     outDir: 'docs'
+  },
+  server: {
+    fs: {
+      strict: false
+    }
+  },
+  cacheDir: './.vite-cache',
+  optimizeDeps: {
+    force: true
   }
-})
+}))
