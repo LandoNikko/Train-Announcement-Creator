@@ -11,7 +11,7 @@ const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverP
     }
   }
 
-  const dotRadius = Math.min(5, 3 * zoom)
+  const dotRadius = Math.min(3.5, 2 * zoom)
   const showHoverIndicator = currentTool === 'station' || currentTool === 'createLine' || currentTool === 'drawPath'
 
   return (
@@ -34,10 +34,14 @@ const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverP
             cx={dot.x}
             cy={dot.y}
             r={isHovered ? dotRadius * 2 : dotRadius}
-            className={`grid-dot cursor-pointer transition-all ${
+            className={`grid-dot transition-all ${
+              showHoverIndicator ? 'cursor-pointer' : ''
+            } ${
               isHovered 
                 ? 'fill-blue-400 dark:fill-blue-500' 
-                : 'fill-gray-300 dark:fill-gray-600 hover:fill-blue-400 dark:hover:fill-blue-500'
+                : showHoverIndicator
+                  ? 'fill-gray-300 dark:fill-gray-600 hover:fill-blue-400 dark:hover:fill-blue-500'
+                  : 'fill-gray-300 dark:fill-gray-600'
             }`}
           />
         )

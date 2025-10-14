@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { Play, Pause, Square, X, ChevronDown, ChevronUp, Volume2, VolumeX, SkipBack, SkipForward, List, GitCommitVertical, Building2, TrainFront, ArrowDown, AlertTriangle, Plus, RotateCcw, Music, Radio, Bell, Clock, MapPin, Info, MessageSquare, Trash2, FileText } from 'lucide-react'
+import { Play, Pause, Square, X, ChevronDown, ChevronUp, Volume2, VolumeX, SkipBack, SkipForward, List, GitCommitVertical, Building2, TrainFront, ArrowDown, AlertTriangle, Plus, RotateCcw, Music, Radio, Bell, Clock, MapPin, Info, MessageSquare, Trash2 } from 'lucide-react'
 import { useTranslation } from '../../hooks/useTranslation'
 import { getAllPresets } from '../../data/audioPresets'
 
-// Animated sound wave indicator
-const SoundWave = () => (
+export const SoundWave = () => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
     <rect x="1" y="5" width="2" height="4" fill="currentColor" className="animate-sound-wave" style={{ animationDelay: '0ms' }} />
     <rect x="4" y="3" width="2" height="8" fill="currentColor" className="animate-sound-wave" style={{ animationDelay: '150ms' }} />
@@ -12,6 +11,9 @@ const SoundWave = () => (
     <rect x="10" y="4" width="2" height="6" fill="currentColor" className="animate-sound-wave" style={{ animationDelay: '450ms' }} />
   </svg>
 )
+
+// Reusable class strings for consistency
+const BUTTON_CLASSES = "flex items-center justify-center p-1.5 rounded-lg transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
 
 const AnnouncementPanel = ({ 
   stations, 
@@ -26,6 +28,8 @@ const AnnouncementPanel = ({
   setBetweenSegments,
   uploadedAudios,
   setUploadedAudios,
+  generatedAudioHistory,
+  setGeneratedAudioHistory,
   apiKey, 
   language = 'en', 
   isMobile, 
@@ -33,7 +37,10 @@ const AnnouncementPanel = ({
   onStationSelect,
   selectedStationId,
   showStationNumbers = false,
-  onPlayingStationChange
+  onPlayingStationChange,
+  showTranscription = false,
+  setShowTranscription,
+  setCurrentTranscription
 }) => {
   const { t } = useTranslation(language)
   const [selectedLineId, setSelectedLineId] = useState(null)
@@ -45,14 +52,23 @@ const AnnouncementPanel = ({
   const [aiGenerationType, setAiGenerationType] = useState('text-to-speech')
   const [aiTextInput, setAiTextInput] = useState('')
   const [aiSelectedVoice, setAiSelectedVoice] = useState('21m00Tcm4TlvDq8ikWAM') // Default Rachel voice
+  
+  // Available ElevenLabs voices with preview audio
+  const availableVoices = useMemo(() => [
+    { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', preview: '/src/assets/audio/presets/Rachel preview.mp3' },
+    { id: 'sRYzP8TwEiiqAWebdYPJ', name: 'Hatakekohei', preview: '/src/assets/audio/presets/Hatakekohei preview.mp3' }
+  ], [])
+  
+  const [voicePreviewPlaying, setVoicePreviewPlaying] = useState(null)
+  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false)
+  const voicePreviewRef = useRef(null)
+  const voiceDropdownRef = useRef(null)
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false)
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [masterVolume, setMasterVolume] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
-  const [currentStationIndex, setCurrentStationIndex] = useState(0)
   const [showVolumeControl, setShowVolumeControl] = useState(false)
   const [showSpeedControl, setShowSpeedControl] = useState(false)
-  const [showTranscription, setShowTranscription] = useState(false)
   const [hoveredBetweenSlot, setHoveredBetweenSlot] = useState(null)
   const [audioDurations, setAudioDurations] = useState({})
   const [audioRemainingTimes, setAudioRemainingTimes] = useState({})
@@ -65,15 +81,12 @@ const AnnouncementPanel = ({
   const queueUpdateIntervalRef = useRef(null)
   const isPlayingAllRef = useRef(false) // Ref to track queue playback state for async operations
 
-  // Sync isPlayingAllRef with isPlayingAll state
   useEffect(() => {
     isPlayingAllRef.current = isPlayingAll
   }, [isPlayingAll])
 
-  // Notify parent when playing station changes
   useEffect(() => {
     if (onPlayingStationChange && currentlyPlaying) {
-      // Extract station ID from slot ID (format: "station-{stationId}")
       const match = currentlyPlaying.match(/^station-(.+)$/)
       if (match) {
         onPlayingStationChange(match[1], !isPaused)
@@ -85,10 +98,52 @@ const AnnouncementPanel = ({
     }
   }, [currentlyPlaying, isPaused, onPlayingStationChange])
 
-  // Auto-select first line when lines change
   useEffect(() => {
-    if (lines.length > 0 && !selectedLineId) {
+    if (currentlyPlaying && !isPaused) {
+      const match = currentlyPlaying.match(/^station-(.+)$/)
+      if (match && onStationSelect) {
+        onStationSelect(match[1])
+      } else if (currentlyPlaying.startsWith('between') && onStationSelect) {
+        onStationSelect(null)
+      }
+    }
+  }, [currentlyPlaying, isPaused, onStationSelect])
+
+  useEffect(() => {
+    if (setCurrentTranscription) {
+      if (currentlyPlaying && !isPaused) {
+        const assignment = audioAssignments[currentlyPlaying]
+        setCurrentTranscription(assignment?.transcription || '')
+      } else {
+        setCurrentTranscription('')
+      }
+    }
+  }, [currentlyPlaying, isPaused, audioAssignments, setCurrentTranscription])
+
+  // Stop audio playback when preset is loaded (stations/lines change)
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
+    setCurrentlyPlaying(null)
+    setIsPaused(false)
+    setIsPlayingAll(false)
+    if (updateIntervalRef.current) {
+      clearInterval(updateIntervalRef.current)
+      updateIntervalRef.current = null
+    }
+    if (queueUpdateIntervalRef.current) {
+      clearInterval(queueUpdateIntervalRef.current)
+      queueUpdateIntervalRef.current = null
+    }
+  }, [stations, lines])
+
+  useEffect(() => {
+    if (lines.length > 0) {
+      if (!selectedLineId || !lines.find(l => l.id === selectedLineId)) {
       setSelectedLineId(lines[0].id)
+    }
     }
   }, [lines, selectedLineId])
 
@@ -102,11 +157,15 @@ const AnnouncementPanel = ({
       if (clickedOutside) {
         setOpenDropdowns({})
       }
+      
+      if (voiceDropdownOpen && voiceDropdownRef.current && !voiceDropdownRef.current.contains(event.target)) {
+        setVoiceDropdownOpen(false)
+      }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [openDropdowns])
+  }, [openDropdowns, voiceDropdownOpen])
 
   const selectedLine = useMemo(() => 
     lines.find(line => line.id === selectedLineId),
@@ -120,7 +179,6 @@ const AnnouncementPanel = ({
       .map(stationId => stations.find(s => s.id === stationId))
       .filter(Boolean)
       .filter((station, index, arr) => {
-        // Remove duplicate last station if it's the same as the first
         if (index === arr.length - 1 && arr.length > 1) {
           return station.id !== arr[0].id
         }
@@ -128,48 +186,55 @@ const AnnouncementPanel = ({
       })
   }, [selectedLine, stations])
   
-  // Get line color or default
   const lineColor = selectedLine?.color || '#ef4444'
-  
-  // Memoized presets to avoid repeated calls
   const presets = useMemo(() => getAllPresets(), [])
   
-  // Helper function to get all lines a station belongs to
   const getStationLines = useCallback((stationId) => {
     return lines.filter(line => line.stations.includes(stationId))
   }, [lines])
 
   // Load audio duration when assignment changes
   const loadAudioDuration = (slotId, url) => {
-    const audio = new Audio(url)
-    audio.preload = 'metadata'
-    audio.addEventListener('loadedmetadata', () => {
-      const duration = Math.ceil(audio.duration)
-      if (duration && !isNaN(duration)) {
+    if (!url) return
+    
+    try {
+      const audio = new Audio(url)
+      audio.preload = 'metadata'
+      audio.addEventListener('loadedmetadata', () => {
+        const duration = Math.ceil(audio.duration)
+        if (duration && !isNaN(duration)) {
+          setAudioDurations(prev => ({
+            ...prev,
+            [slotId]: duration
+          }))
+        }
+      })
+      audio.addEventListener('error', (e) => {
+        console.warn(`Could not load audio metadata for ${slotId}:`, url)
         setAudioDurations(prev => ({
           ...prev,
-          [slotId]: duration
+          [slotId]: 30
         }))
-      }
-    })
-    audio.addEventListener('error', (e) => {
-      console.error('Error loading audio metadata:', e)
-    })
-    audio.load()
+      })
+      audio.load()
+    } catch (error) {
+      console.warn(`Error creating audio for ${slotId}:`, error)
+      setAudioDurations(prev => ({
+        ...prev,
+        [slotId]: 30
+      }))
+    }
   }
 
-  // Format time in seconds to "Xs" or "Xm Ys"
   const formatTime = (seconds) => {
-    if (seconds < 60) {
-      return `${seconds}s`
-    }
+    if (seconds < 60) return `${seconds}s`
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`
   }
 
-  // Get ordered queue of all audio slots
-  const getOrderedQueue = () => {
+  // Get ordered queue of all audio slots (memoized for performance)
+  const getOrderedQueue = useCallback(() => {
     const queue = []
     lineStations.forEach((station, index) => {
       const stationSlotId = `station-${station.id}`
@@ -183,19 +248,19 @@ const AnnouncementPanel = ({
           queue.push(betweenSlotId)
         }
         
-        // Add extra between segments
-        const extraSegments = betweenSegments[betweenSlotId] || []
-        extraSegments.forEach(segmentId => {
-          if (audioAssignments[segmentId]?.url) {
-            queue.push(segmentId)
-          }
-        })
+        const extraSegments = betweenSegments[betweenSlotId]
+        if (Array.isArray(extraSegments)) {
+          extraSegments.forEach(segmentId => {
+            if (audioAssignments[segmentId]?.url) {
+              queue.push(segmentId)
+            }
+          })
+        }
       }
     })
     return queue
-  }
+  }, [lineStations, audioAssignments, betweenSegments])
 
-  // Calculate total duration of all assigned audio files
   const getTotalDuration = () => {
     let total = 0
     const queue = getOrderedQueue()
@@ -207,7 +272,6 @@ const AnnouncementPanel = ({
     return total
   }
 
-  // Calculate elapsed time in queue
   const getElapsedTime = () => {
     let elapsed = 0
     const queue = getOrderedQueue()
@@ -217,14 +281,12 @@ const AnnouncementPanel = ({
         elapsed += audioDurations[slotId]
       }
     }
-    // Add current audio progress
     if (queue[currentQueueIndex] && audioRef.current && !audioRef.current.paused) {
       elapsed += Math.ceil(audioRef.current.currentTime)
     }
     return elapsed
   }
 
-  // Calculate remaining time in queue
   const getRemainingTime = () => {
     return getTotalDuration() - getElapsedTime()
   }
@@ -234,22 +296,18 @@ const AnnouncementPanel = ({
     if (lineStations.length > 0 && selectedLineId) {
       const newAssignments = {}
       
-      // Get station IDs for the current line
-      const currentLineStationIds = new Set(lineStations.map(s => s.id))
+      const validSlotIds = new Set()
+      lineStations.forEach((station, index) => {
+        validSlotIds.add(`station-${station.id}`)
+        if (index < lineStations.length - 1) {
+          validSlotIds.add(`between-${station.id}-${lineStations[index + 1].id}`)
+        }
+      })
       
-      // Filter out assignments from other lines
       const filteredAssignments = {}
       Object.keys(audioAssignments).forEach(slotId => {
-        if (slotId.startsWith('station-')) {
-          const stationId = parseInt(slotId.replace('station-', ''))
-          if (currentLineStationIds.has(stationId)) {
-            filteredAssignments[slotId] = audioAssignments[slotId]
-          }
-        } else if (slotId.startsWith('between-')) {
-          const [_, id1, id2] = slotId.match(/between-(\d+)-(\d+)/) || []
-          if (id1 && id2 && currentLineStationIds.has(parseInt(id1)) && currentLineStationIds.has(parseInt(id2))) {
-            filteredAssignments[slotId] = audioAssignments[slotId]
-          }
+        if (validSlotIds.has(slotId)) {
+          filteredAssignments[slotId] = audioAssignments[slotId]
         }
       })
       
@@ -433,7 +491,6 @@ const AnnouncementPanel = ({
       [parentSlotId]: (prev[parentSlotId] || []).filter(id => id !== segmentId)
     }))
     
-    // Also remove the audio assignment
     setAudioAssignments(prev => {
       const newAssignments = { ...prev }
       delete newAssignments[segmentId]
@@ -487,16 +544,16 @@ const AnnouncementPanel = ({
     if (assignment.type === 'upload') {
       return `${t('audioTypeUpload')}: ${assignment.name}`
     }
-    // For generated audio, show localized "AI Voice #[slot number]"
+    // For generated audio, show "VoiceName #[slot number]"
     if (assignment.type === 'generated') {
       // Extract slot number from slotId (e.g., "station-0" -> "1", "between-0-1" -> "1")
-      if (!slotId) return `${t('audioTypeGenerated')} #1`
+      if (!slotId) return `${assignment.voiceName || t('audioTypeGenerated')} #1`
       
       const parts = slotId.split('-')
       const numericPart = parts.find(part => !isNaN(parseInt(part)))
       const slotNumber = numericPart ? parseInt(numericPart) + 1 : 1
       
-      return `${t('audioTypeGenerated')} #${slotNumber}`
+      return `${assignment.voiceName || t('audioTypeGenerated')} #${slotNumber}`
     }
     return assignment.name
   }, [t])
@@ -555,21 +612,27 @@ const AnnouncementPanel = ({
         const audioBlob = await response.blob()
         const audioUrl = URL.createObjectURL(audioBlob)
         
-        // Assign the generated audio to the slot
-        setAudioAssignments(prev => ({
+        const newGeneration = {
+          url: audioUrl,
+          name: `AI: ${aiTextInput.substring(0, 30)}${aiTextInput.length > 30 ? '...' : ''}`,
+          type: 'generated',
+          text: aiTextInput,
+          voice: aiSelectedVoice,
+          voiceName: availableVoices.find(v => v.id === aiSelectedVoice)?.name || 'Unknown',
+          timestamp: Date.now()
+        }
+        
+        setGeneratedAudioHistory(prev => ({
           ...prev,
-          [slotId]: {
-            url: audioUrl,
-            name: `AI: ${aiTextInput.substring(0, 30)}${aiTextInput.length > 30 ? '...' : ''}`,
-            type: 'generated'
-          }
+          [slotId]: [...(prev[slotId] || []), newGeneration]
         }))
         
-        // Load the audio duration
-        loadAudioDuration(slotId, audioUrl)
+        setAudioAssignments(prev => ({
+          ...prev,
+          [slotId]: newGeneration
+        }))
         
-        // Keep the panel open to show preview options
-        // User can preview, regenerate, or close
+        loadAudioDuration(slotId, audioUrl)
       } else {
         console.error('Failed to generate audio:', response.status)
         const error = await response.text()
@@ -629,7 +692,6 @@ const AnnouncementPanel = ({
     if (!assignment?.url) return
 
     if (currentlyPlaying === slotId && !isPaused) {
-      // Pause current audio
       if (audioRef.current) {
         audioRef.current.pause()
       }
@@ -642,13 +704,11 @@ const AnnouncementPanel = ({
         queueUpdateIntervalRef.current = null
       }
       setIsPaused(true)
-      setIsPlayingAll(false) // Sync with master controller
+      setIsPlayingAll(false)
     } else if (currentlyPlaying === slotId && isPaused) {
-      // Resume paused audio
       if (audioRef.current) {
         audioRef.current.play()
         setIsPaused(false)
-        // Restart the update interval
         updateIntervalRef.current = setInterval(() => {
           if (audioRef.current && !audioRef.current.paused) {
             const remaining = Math.ceil(audioRef.current.duration - audioRef.current.currentTime)
@@ -660,7 +720,6 @@ const AnnouncementPanel = ({
         }, 100)
       }
     } else {
-      // Stop queue playback if active
       if (isPlayingAll) {
         setIsPlayingAll(false)
         if (queueUpdateIntervalRef.current) {
@@ -669,7 +728,6 @@ const AnnouncementPanel = ({
         }
       }
       
-      // Stop any current audio
       if (audioRef.current) {
         audioRef.current.pause()
       }
@@ -677,7 +735,6 @@ const AnnouncementPanel = ({
         clearInterval(updateIntervalRef.current)
       }
       
-      // Clear previous track's remaining time
       if (currentlyPlaying) {
         setAudioRemainingTimes(prev => {
           const newTimes = { ...prev }
@@ -686,7 +743,6 @@ const AnnouncementPanel = ({
         })
       }
       
-      // Play new audio
       setCurrentlyPlaying(slotId)
       setIsPaused(false)
       const audio = new Audio(assignment.url)
@@ -694,14 +750,12 @@ const AnnouncementPanel = ({
       audio.playbackRate = playbackSpeed
       audio.volume = isMuted ? 0 : masterVolume
       
-      // Update queue index to match
       const queue = getOrderedQueue()
       const index = queue.indexOf(slotId)
       if (index !== -1) {
         setCurrentQueueIndex(index)
       }
       
-      // Update remaining time during playback
       updateIntervalRef.current = setInterval(() => {
         if (audio && !audio.paused) {
           const remaining = Math.ceil(audio.duration - audio.currentTime)
@@ -765,7 +819,6 @@ const AnnouncementPanel = ({
 
   const handleMasterPlayPause = () => {
     if (isPlayingAll) {
-      // Pause the queue
       setIsPlayingAll(false)
       setIsPaused(true)
       if (audioRef.current) {
@@ -780,11 +833,9 @@ const AnnouncementPanel = ({
         updateIntervalRef.current = null
       }
     } else {
-      // Start or resume the queue
       const queue = getOrderedQueue()
       if (queue.length === 0) return
       
-      // Stop any individual playback first
       if (updateIntervalRef.current) {
         clearInterval(updateIntervalRef.current)
         updateIntervalRef.current = null
@@ -796,7 +847,6 @@ const AnnouncementPanel = ({
         setIsPaused(false)
         audioRef.current.play().then(() => {
           startQueueProgressTracking()
-          // Restart the update interval
           updateIntervalRef.current = setInterval(() => {
             if (audioRef.current && !audioRef.current.paused) {
               const remaining = Math.ceil(audioRef.current.duration - audioRef.current.currentTime)
@@ -812,8 +862,6 @@ const AnnouncementPanel = ({
           setIsPaused(true)
         })
       } else if (!currentlyPlaying || !queue.includes(currentlyPlaying)) {
-        // Start from beginning if nothing is playing or current isn't in queue
-        // Clean up any existing audio
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current = null
@@ -821,10 +869,8 @@ const AnnouncementPanel = ({
         setCurrentQueueIndex(0)
         setIsPlayingAll(true)
         setIsPaused(false)
-        // Use setTimeout to ensure state is set before starting playback
         setTimeout(() => playQueueFromIndex(0), 0)
     } else {
-        // Audio is already playing, so just mark queue as active
       setIsPlayingAll(true)
         setIsPaused(false)
         startQueueProgressTracking()
@@ -836,7 +882,6 @@ const AnnouncementPanel = ({
     const queue = getOrderedQueue()
     if (queue.length === 0) return
     
-    // Clean up previous track's remaining time
     if (currentlyPlaying) {
       setAudioRemainingTimes(prev => {
         const newTimes = { ...prev }
@@ -845,15 +890,13 @@ const AnnouncementPanel = ({
       })
     }
     
-    setIsPaused(false) // Reset pause state when skipping
+    setIsPaused(false)
     
     if (isPlayingAll) {
-      // Skip to previous in queue
       const newIndex = currentQueueIndex > 0 ? currentQueueIndex - 1 : queue.length - 1
       setCurrentQueueIndex(newIndex)
       playQueueFromIndex(newIndex)
     } else {
-      // Just load previous
       const newIndex = currentQueueIndex > 0 ? currentQueueIndex - 1 : queue.length - 1
       setCurrentQueueIndex(newIndex)
       setCurrentlyPlaying(queue[newIndex])
@@ -864,7 +907,6 @@ const AnnouncementPanel = ({
     const queue = getOrderedQueue()
     if (queue.length === 0) return
     
-    // Clean up previous track's remaining time
     if (currentlyPlaying) {
       setAudioRemainingTimes(prev => {
         const newTimes = { ...prev }
@@ -873,15 +915,13 @@ const AnnouncementPanel = ({
       })
     }
     
-    setIsPaused(false) // Reset pause state when skipping
+    setIsPaused(false)
     
     if (isPlayingAll) {
-      // Skip to next in queue
       const newIndex = (currentQueueIndex + 1) % queue.length
       setCurrentQueueIndex(newIndex)
       playQueueFromIndex(newIndex)
     } else {
-      // Just load next
       const newIndex = (currentQueueIndex + 1) % queue.length
       setCurrentQueueIndex(newIndex)
       setCurrentlyPlaying(queue[newIndex])
@@ -902,7 +942,6 @@ const AnnouncementPanel = ({
     const queue = getOrderedQueue()
     if (startIndex >= queue.length) return
     
-    // Stop current audio if any
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current = null
@@ -912,7 +951,6 @@ const AnnouncementPanel = ({
       updateIntervalRef.current = null
     }
     
-    // Start queue progress tracking
     startQueueProgressTracking()
     setIsPaused(false)
     
@@ -933,7 +971,6 @@ const AnnouncementPanel = ({
           audio.playbackRate = playbackSpeed
           audio.volume = isMuted ? 0 : masterVolume
           
-          // Track individual audio progress
           updateIntervalRef.current = setInterval(() => {
             if (audio && !audio.paused) {
               const remaining = Math.ceil(audio.duration - audio.currentTime)
@@ -978,7 +1015,6 @@ const AnnouncementPanel = ({
       }
     }
     
-    // Queue finished
     setIsPlayingAll(false)
     setIsPaused(false)
     setCurrentlyPlaying(null)
@@ -989,7 +1025,7 @@ const AnnouncementPanel = ({
       queueUpdateIntervalRef.current = null
     }
   }
-
+  
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -1001,31 +1037,33 @@ const AnnouncementPanel = ({
 
   const renderAudioSlot = (slotId, label, stationId = null, slotIndex = 0, isExtraSegment = false, parentSlotId = null) => {
     const assignment = audioAssignments[slotId]
-    const isSelected = stationId && stationId === selectedStationId
     const isPlaying = currentlyPlaying === slotId
     const isPlayingAndNotPaused = isPlaying && !isPaused
+    const isStation = !slotId.startsWith('between') && !isExtraSegment
+    const isManuallySelected = isStation && stationId && stationId === selectedStationId
     const isDropdownOpen = openDropdowns[slotId]
     const isAIConfigOpen = showAIConfig === slotId
     const isTypeDropdownOpen = openDropdowns[`${slotId}-type`]
     const slotType = slotId.startsWith('between') || isExtraSegment ? 'general' : 'station'
-    const isStation = !slotId.startsWith('between') && !isExtraSegment
+    
+    const showHighlight = isPlayingAndNotPaused || (isManuallySelected && !isPlayingAndNotPaused)
 
     return (
       <div 
         className={`border rounded-lg transition-all overflow-visible ${
-          isPlayingAndNotPaused 
-            ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50 dark:bg-blue-900/10' 
-            : isSelected 
+          showHighlight
             ? 'ring-2 ring-blue-500 border-blue-500' 
             : 'border-gray-200 dark:border-gray-700'
         }`}
       >
         <div 
-          className={`p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors rounded-lg ${
-            isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-white dark:bg-gray-800'
+          className={`p-2 transition-colors rounded-lg ${
+            showHighlight
+              ? 'bg-blue-50 dark:bg-blue-900/20' 
+              : 'bg-white dark:bg-gray-800'
           }`}
           onClick={() => {
-            if (stationId) handleStationClick(stationId)
+            if (isStation && stationId) handleStationClick(stationId)
           }}
         >
           {/* Top row: Prefix space + Icon/Number, Label, Remove button, Duration */}
@@ -1349,7 +1387,7 @@ const AnnouncementPanel = ({
           </div>
 
           {isAIConfigOpen && (
-            <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 max-w-full overflow-hidden">
+            <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 max-w-full overflow-visible">
               <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-3">AI Generation</p>
               
               {/* Generation Type Radio Buttons */}
@@ -1390,6 +1428,76 @@ const AnnouncementPanel = ({
               {/* Text-to-Speech Form */}
               {aiGenerationType === 'text-to-speech' && (
                 <div className="space-y-3 max-w-full">
+                  <div className="relative" ref={voiceDropdownRef}>
+                    <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Voice</label>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setVoiceDropdownOpen(!voiceDropdownOpen)
+                      }}
+                      className="w-full flex items-center justify-between gap-2 px-2 py-1.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded border border-gray-200 dark:border-gray-600 transition-colors text-xs"
+                    >
+                      <span className="text-gray-700 dark:text-gray-300">
+                        {availableVoices.find(v => v.id === aiSelectedVoice)?.name || 'Select voice...'}
+                      </span>
+                      {voiceDropdownOpen ? (
+                        <ChevronUp size={14} className="flex-shrink-0 text-gray-500" />
+                      ) : (
+                        <ChevronDown size={14} className="flex-shrink-0 text-gray-500" />
+                      )}
+                    </button>
+
+                    {voiceDropdownOpen && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-[100] overflow-hidden">
+                        {availableVoices.map(voice => {
+                          const isSelected = aiSelectedVoice === voice.id
+                          const isPlaying = voicePreviewPlaying === voice.id
+                          return (
+                            <button
+                              key={voice.id}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (e.target.closest('.preview-button')) return
+                                setAiSelectedVoice(voice.id)
+                                setVoiceDropdownOpen(false)
+                              }}
+                              className={`w-full flex items-center gap-2 px-3 py-1.5 border-b border-gray-100 dark:border-gray-700 last:border-b-0 text-left text-xs ${
+                                isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                              }`}
+                            >
+                              <span className="flex-1 text-gray-700 dark:text-gray-300">
+                                {voice.name}
+                              </span>
+                              <span
+                                className="preview-button p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors flex-shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (isPlaying) {
+                                    voicePreviewRef.current?.pause()
+                                    setVoicePreviewPlaying(null)
+                                  } else {
+                                    if (voicePreviewRef.current) {
+                                      voicePreviewRef.current.src = voice.preview
+                                      voicePreviewRef.current.play()
+                                      setVoicePreviewPlaying(voice.id)
+                                    }
+                                  }
+                                }}
+                                title={`Preview ${voice.name}`}
+                              >
+                                {isPlaying ? (
+                                  <Pause size={14} className="text-blue-500" />
+                                ) : (
+                                  <Play size={14} className="text-gray-600 dark:text-gray-400" />
+                                )}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Text</label>
                     <textarea
@@ -1402,51 +1510,95 @@ const AnnouncementPanel = ({
                     />
                   </div>
 
-                  <div>
-                    <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Voice</label>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 py-1.5 italic">
-                      Using default voice (Rachel)
-                    </div>
-                  </div>
-
-                  {/* Audio Preview (if generated) */}
-                  {assignment && assignment.type === 'generated' && !isGeneratingAudio && (
-                    <div className="p-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/50">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{getLocalizedAudioName(assignment, slotId)}</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                              if (currentlyPlaying === slotId) {
-                                handleStop()
-                              } else {
-                                handlePlayAudio(slotId)
-                              }
-                            }}
-                            className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                            title={currentlyPlaying === slotId ? 'Stop' : 'Play'}
-                          >
-                            {currentlyPlaying === slotId ? (
-                              <Pause size={16} className="text-gray-700 dark:text-gray-300" />
-                            ) : (
-                              <Play size={16} className="text-gray-700 dark:text-gray-300" />
-                            )}
-              </button>
+                  {/* Generated Audio History */}
+                  {generatedAudioHistory[slotId] && generatedAudioHistory[slotId].length > 0 && !isGeneratingAudio && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-400">Generated Audio:</p>
+                      {generatedAudioHistory[slotId].map((gen, index) => {
+                        const isCurrentAssignment = assignment && assignment.url === gen.url
+                        const genPlayId = `${slotId}-gen-${index}`
+                        const isThisPlaying = currentlyPlaying === genPlayId
+                        const isThisPlayingAndNotPaused = isThisPlaying && !isPaused
+                        return (
                           <button
+                            key={genPlayId}
                             onClick={(e) => {
                               e.stopPropagation()
-                              handleRemoveAudio(slotId)
+                              // Set this as the current audio (radio selection)
+                              setAudioAssignments(prev => ({
+                                ...prev,
+                                [slotId]: gen
+                              }))
                             }}
-                            className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                            title="Remove"
+                            className={`w-full p-2 border rounded bg-gray-50 dark:bg-gray-700/50 transition-all text-left ${
+                              isCurrentAssignment 
+                                ? 'border-blue-500 ring-2 ring-blue-500 ring-opacity-50' 
+                                : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500'
+                            }`}
                           >
-                            <X size={16} className="text-gray-700 dark:text-gray-300" />
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-gray-700 dark:text-gray-300 font-medium mb-1">{gen.voiceName} #{index + 1}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 break-words whitespace-normal">{gen.text}</p>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (isThisPlaying && !isPaused) {
+                                      audioRef.current?.pause()
+                                      setIsPaused(true)
+                                    } else if (isThisPlaying && isPaused) {
+                                      audioRef.current?.play()
+                                      setIsPaused(false)
+                                    } else {
+                                      if (audioRef.current) {
+                                        audioRef.current.src = gen.url
+                                        audioRef.current.load()
+                                        audioRef.current.playbackRate = playbackSpeed
+                                        audioRef.current.volume = isMuted ? 0 : masterVolume
+                                        audioRef.current.play().catch(err => {
+                                          console.error('Error playing audio:', err)
+                                        })
+                                        setCurrentlyPlaying(genPlayId)
+                                        setIsPaused(false)
+                                      }
+                                    }
+                                  }}
+                                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                                  title={isThisPlayingAndNotPaused ? "Pause" : "Play"}
+                                >
+                                  {isThisPlayingAndNotPaused ? (
+                                    <Pause size={14} className="text-blue-500" />
+                                  ) : (
+                                    <Play size={14} className="text-gray-600 dark:text-gray-400" />
+                                  )}
+                                </span>
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setGeneratedAudioHistory(prev => ({
+                                      ...prev,
+                                      [slotId]: prev[slotId].filter((_, i) => i !== index)
+                                    }))
+                                    if (isCurrentAssignment) {
+                                      setAudioAssignments(prev => {
+                                        const updated = { ...prev }
+                                        delete updated[slotId]
+                                        return updated
+                                      })
+                                    }
+                                  }}
+                                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                                  title="Remove"
+                                >
+                                  <X size={14} className="text-gray-700 dark:text-gray-300" />
+                                </span>
+                              </div>
+                            </div>
                           </button>
-                        </div>
-                      </div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -1468,7 +1620,7 @@ const AnnouncementPanel = ({
                       <span>Generating...</span>
                     </>
                   ) : (
-                    assignment && assignment.type === 'generated' ? 'Regenerate' : 'Generate'
+                    'Generate'
                   )}
               </button>
               <button
@@ -1492,24 +1644,30 @@ const AnnouncementPanel = ({
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-800">
+      {/* Hidden audio element for voice previews */}
+      <audio
+        ref={voicePreviewRef}
+        onEnded={() => setVoicePreviewPlaying(null)}
+        onPause={() => setVoicePreviewPlaying(null)}
+      />
       <div className="p-3 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center gap-2">
           <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t('audioQueue')}</h2>
+          <div className="flex items-center gap-2">
             {getTotalDuration() > 0 && (
               <span className="text-xs px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
-                {formatTime(getTotalDuration())}
+                {isPlayingAll ? formatTime(getRemainingTime()) : formatTime(getTotalDuration())}
               </span>
             )}
+            {isMobile && onClose && (
+              <button
+                onClick={onClose}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              >
+                <X size={20} className="text-gray-600 dark:text-gray-400" />
+              </button>
+            )}
           </div>
-          {isMobile && onClose && (
-            <button
-              onClick={onClose}
-              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-            >
-              <X size={20} className="text-gray-600 dark:text-gray-400" />
-            </button>
-          )}
         </div>
 
         {lines.length > 1 && (
@@ -1530,9 +1688,9 @@ const AnnouncementPanel = ({
           <>
             {/* Master Control Panel */}
             <div className="flex items-center gap-1 mb-1.5">
-        <button
+              <button
                 onClick={() => setShowVolumeControl(!showVolumeControl)}
-                className="flex items-center justify-center gap-0.5 p-1.5 rounded-lg transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                className={`${BUTTON_CLASSES} gap-0.5`}
                 title={t('toggleVolume')}
               >
                 {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
@@ -1545,7 +1703,7 @@ const AnnouncementPanel = ({
               
               <button
                 onClick={handleSkipPrev}
-                className="flex items-center justify-center p-1.5 rounded-lg transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                className={BUTTON_CLASSES}
                 title="Previous in Queue"
               >
                 <SkipBack size={16} />
@@ -1561,7 +1719,7 @@ const AnnouncementPanel = ({
               
               <button
                 onClick={handleSkipNext}
-                className="flex items-center justify-center p-1.5 rounded-lg transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                className={BUTTON_CLASSES}
                 title="Next in Queue"
               >
                 <SkipForward size={16} />
@@ -1569,7 +1727,7 @@ const AnnouncementPanel = ({
               
               <button
                 onClick={() => setShowSpeedControl(!showSpeedControl)}
-                className="flex items-center justify-center gap-0.5 p-1.5 rounded-lg transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 min-w-[44px]"
+                className={`${BUTTON_CLASSES} gap-0.5 min-w-[44px]`}
                 title={t('cycleSpeed')}
               >
                 <span className="text-xs font-medium leading-none">{playbackSpeed}x</span>
@@ -1578,18 +1736,6 @@ const AnnouncementPanel = ({
                 ) : (
                   <ChevronDown size={12} className="opacity-60" />
                 )}
-              </button>
-
-              <button
-                onClick={() => setShowTranscription(!showTranscription)}
-                className={`flex items-center justify-center p-1.5 rounded-lg transition-colors ${
-                  showTranscription 
-                    ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-                title={t('transcription')}
-              >
-                <FileText size={16} />
               </button>
             </div>
 
@@ -1600,7 +1746,7 @@ const AnnouncementPanel = ({
                   {currentQueueIndex + 1} / {getOrderedQueue().length}
                 </span>
                 <span className="text-gray-600 dark:text-gray-400">
-                  {isPlayingAll ? formatTime(getRemainingTime()) : formatTime(getTotalDuration())}
+                  {formatTime(getTotalDuration())}
                 </span>
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
@@ -1615,21 +1761,27 @@ const AnnouncementPanel = ({
 
             {/* Volume Control Row */}
             {showVolumeControl && (
-              <div className="flex items-center gap-2 mb-1.5 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => {
-                    setIsMuted(!isMuted)
-                    if (audioRef.current) {
-                      audioRef.current.volume = isMuted ? masterVolume : 0
-                    }
-                  }}
-                  className="flex items-center justify-center p-1.5 rounded-lg transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                  title={isMuted ? t('unmute') : t('mute')}
-                >
-                  {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                </button>
-                
-                <div className="flex-1 flex items-center gap-2">
+              <div className="mb-1.5 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-gray-600 dark:text-gray-400">Volume</span>
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-[32px] text-right">
+                    {Math.round((isMuted ? 0 : masterVolume) * 100)}%
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setIsMuted(!isMuted)
+                      if (audioRef.current) {
+                        audioRef.current.volume = isMuted ? masterVolume : 0
+                      }
+                    }}
+                    className={BUTTON_CLASSES}
+                    title={isMuted ? t('unmute') : t('mute')}
+                  >
+                    {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                  </button>
+                  
                   <input
                     type="range"
                     min="0"
@@ -1646,28 +1798,28 @@ const AnnouncementPanel = ({
                     }}
                     className="flex-1 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"
                   />
-                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-[32px] text-right">
-                    {Math.round((isMuted ? 0 : masterVolume) * 100)}%
-                  </span>
                 </div>
               </div>
             )}
 
             {/* Speed Control Row */}
             {showSpeedControl && (
-              <div className="flex items-center gap-2 mb-1.5 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-        <button
-                  onClick={() => handleSpeedChange(1)}
-                  className="flex items-center justify-center p-1.5 rounded-lg transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                  title="Reset to 1x"
-                >
-                  <span className="text-xs font-medium">1x</span>
-        </button>
-                
-                <div className="flex-1 flex items-center gap-2">
-                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-[32px]">
-                    0.5x
+              <div className="mb-1.5 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-gray-600 dark:text-gray-400">Speed</span>
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-[40px] text-right">
+                    {playbackSpeed.toFixed(2)}x
                   </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleSpeedChange(1)}
+                    className={BUTTON_CLASSES}
+                    title="Reset to 1x"
+                  >
+                    <span className="text-xs font-medium">1x</span>
+                  </button>
+                  
                   <input
                     type="range"
                     min="0.5"
@@ -1680,12 +1832,6 @@ const AnnouncementPanel = ({
                     }}
                     className="flex-1 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"
                   />
-                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-[32px]">
-                    4x
-                  </span>
-                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-[36px] text-right">
-                    {playbackSpeed.toFixed(2)}x
-                  </span>
                 </div>
               </div>
             )}

@@ -153,8 +153,6 @@ const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMod
         <div 
           className="relative" 
           ref={languageMenuRef}
-          onMouseEnter={() => setShowLanguageMenu(true)}
-          onMouseLeave={() => setShowLanguageMenu(false)}
         >
           <button
             onClick={() => setShowLanguageMenu(!showLanguageMenu)}
@@ -170,7 +168,10 @@ const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMod
               {languages.map(lang => (
                 <button
                   key={lang.code}
-                  onClick={() => onLanguageChange(lang.code)}
+                  onClick={() => {
+                    onLanguageChange(lang.code)
+                    setShowLanguageMenu(false)
+                  }}
                   className={`w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
                     language === lang.code ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                   }`}

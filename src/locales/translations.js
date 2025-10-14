@@ -68,6 +68,11 @@ export const translations = {
     'Rapid service through central Tokyo': 'Rapid service through central Tokyo',
     'Ginza Line': 'Ginza Line',
     'Tokyo\'s oldest subway line': 'Tokyo\'s oldest subway line',
+    'Taiyokei Line': 'Taiyōkei Line',
+    'Solar System train line from Mercury to Pluto in Japanese': 'Solar System train line from Mercury to Pluto in Japanese',
+    'Taiyokei Line (English)': 'Taiyōkei Line (English)',
+    'Solar System train line from Mercury to Pluto in English': 'Solar System train line from Mercury to Pluto in English',
+    'Japan': 'Japan',
     'Simple Demo': 'Simple Demo',
     'A simple 4-station demo route': 'A simple 4-station demo route',
     
@@ -208,6 +213,11 @@ export const translations = {
     'Rapid service through central Tokyo': '東京中心部を走る快速列車',
     'Ginza Line': '銀座線',
     'Tokyo\'s oldest subway line': '東京最古の地下鉄路線',
+    'Taiyokei Line': '太陽系線',
+    'Solar System train line from Mercury to Pluto in Japanese': '水星から冥王星までの太陽系線（日本語）',
+    'Taiyokei Line (English)': '太陽系線（英語版）',
+    'Solar System train line from Mercury to Pluto in English': '水星から冥王星までの太陽系線（英語）',
+    'Japan': '日本',
     'Simple Demo': 'シンプルデモ',
     'A simple 4-station demo route': 'シンプルな4駅のデモルート',
     

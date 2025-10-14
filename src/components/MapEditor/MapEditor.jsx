@@ -1,13 +1,14 @@
-import { useRef, useState, useEffect } from 'react'
-import { Crosshair, CheckCircle, GitCommitVertical } from 'lucide-react'
+import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { Crosshair, CheckCircle, GitCommitVertical, FileText } from 'lucide-react'
 import GridCanvas from './GridCanvas'
 import StationMarker from './StationMarker'
 import TrainLine from './TrainLine'
 import LineStationEditor from './LineStationEditor'
 import { useTranslation } from '../../hooks/useTranslation'
 import { getNextStationName } from '../../data/stationNames'
+import { SoundWave } from '../AnnouncementEditor/AnnouncementPanel'
 
-const MapEditor = ({ 
+const MapEditor = forwardRef(({ 
   stations, 
   setStations, 
   setStationsNoHistory,
@@ -23,8 +24,11 @@ const MapEditor = ({
   isMobile = false,
   selectedStationId = null,
   playingStationId = null,
-  isStationPlaying = false
-}) => {
+  isStationPlaying = false,
+  showTranscription = false,
+  setShowTranscription,
+  currentTranscription = ''
+}, ref) => {
   const { t } = useTranslation(language)
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1200, height: 800 })
   const [isPanning, setIsPanning] = useState(false)
@@ -38,8 +42,10 @@ const MapEditor = ({
   const [lineCreationStations, setLineCreationStations] = useState([])
   const [pathCreationPoints, setPathCreationPoints] = useState([])
   const [currentLineColor, setCurrentLineColor] = useState('#ef4444')
+  const [isAnimating, setIsAnimating] = useState(false)
   const svgRef = useRef(null)
   const containerRef = useRef(null)
+  const animationFrameRef = useRef(null)
   
   const gridSpacing = 30 * gridZoom
   const snapToGrid = (coord) => Math.round(coord / gridSpacing) * gridSpacing
@@ -394,7 +400,7 @@ const MapEditor = ({
     }
   }
 
-  const handleCenterView = () => {
+  const handleCenterView = (animate = true) => {
     if (stations.length === 0) return
     
     const xs = stations.map(s => s.x)
@@ -402,12 +408,66 @@ const MapEditor = ({
     const centerX = (Math.min(...xs) + Math.max(...xs)) / 2
     const centerY = (Math.min(...ys) + Math.max(...ys)) / 2
     
-    setViewBox(prev => ({
-      ...prev,
-      x: centerX - prev.width / 2,
-      y: centerY - prev.height / 2
-    }))
+    const targetX = centerX - viewBox.width / 2
+    const targetY = centerY - viewBox.height / 2
+    
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+    }
+    
+    if (!animate) {
+      setViewBox(prev => ({
+        ...prev,
+        x: targetX,
+        y: targetY
+      }))
+      return
+    }
+    
+    setIsAnimating(true)
+    const startX = viewBox.x
+    const startY = viewBox.y
+    const startTime = performance.now()
+    const duration = 600
+    
+    const animateView = (currentTime) => {
+      const elapsed = currentTime - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      
+      const easeInOutCubic = progress < 0.5
+        ? 4 * progress * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 3) / 2
+      
+      const newX = startX + (targetX - startX) * easeInOutCubic
+      const newY = startY + (targetY - startY) * easeInOutCubic
+      
+      setViewBox(prev => ({
+        ...prev,
+        x: newX,
+        y: newY
+      }))
+      
+      if (progress < 1) {
+        animationFrameRef.current = requestAnimationFrame(animateView)
+      } else {
+        setIsAnimating(false)
+      }
+    }
+    
+    animationFrameRef.current = requestAnimationFrame(animateView)
   }
+
+  useImperativeHandle(ref, () => ({
+    centerView: handleCenterView
+  }))
+
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+    }
+  }, [])
 
   const renderGhostLine = () => {
     if (currentTool === 'createLine' && lineCreationStations.length > 0 && mousePosition) {
@@ -581,6 +641,19 @@ const MapEditor = ({
         </div>
       )}
 
+      {showTranscription && currentTranscription && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-full max-w-2xl px-4">
+          <div className="bg-white dark:bg-gray-800 px-6 py-3 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 relative">
+            <div className="absolute top-3 left-3 flex items-center gap-1 px-1.5 py-0.5 bg-blue-500 text-white rounded">
+              <SoundWave />
+            </div>
+            <p className="text-center text-base font-medium text-gray-800 dark:text-gray-200 px-8">
+              {currentTranscription}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="absolute bottom-4 left-4 flex items-center gap-3">
         <button
           onClick={handleCenterView}
@@ -590,6 +663,20 @@ const MapEditor = ({
           <Crosshair size={16} />
           <span>{t('centerView')}</span>
         </button>
+
+        {setShowTranscription && (
+          <button
+            onClick={() => setShowTranscription(!showTranscription)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-md text-sm transition-colors ${
+              showTranscription
+                ? 'bg-blue-500 text-white hover:bg-blue-600'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            <FileText size={16} />
+            <span>Transcription</span>
+          </button>
+        )}
         
         {(currentTool === 'createLine' && lineCreationStations.length >= 2) && (
           <button
@@ -619,6 +706,8 @@ const MapEditor = ({
       </div>
     </div>
   )
-}
+})
+
+MapEditor.displayName = 'MapEditor'
 
 export default MapEditor

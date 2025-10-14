@@ -11,9 +11,5 @@ export default defineConfig(({ mode }) => ({
     fs: {
       strict: false
     }
-  },
-  cacheDir: './.vite-cache',
-  optimizeDeps: {
-    force: true
   }
 }))

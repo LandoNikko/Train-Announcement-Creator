@@ -5,6 +5,7 @@ import Toolbar from './components/Shared/Toolbar'
 import APIKeyInput from './components/Shared/APIKeyInput'
 import PresetSidebar from './components/Shared/PresetSidebar'
 import { trainPresets } from './data/presets'
+import { getPresetPath } from './data/audioPresets'
 
 function App() {
   const [stations, setStations] = useState([])
@@ -14,6 +15,7 @@ function App() {
   const [announcementTypes, setAnnouncementTypes] = useState({})
   const [betweenSegments, setBetweenSegments] = useState({})
   const [uploadedAudios, setUploadedAudios] = useState([])
+  const [generatedAudioHistory, setGeneratedAudioHistory] = useState({})
   const [currentTool, setCurrentTool] = useState('select')
   const [selectedStations, setSelectedStations] = useState([])
   const [apiKey, setApiKey] = useState(sessionStorage.getItem('elevenLabsApiKey') || '')
@@ -37,10 +39,13 @@ function App() {
   const [history, setHistory] = useState([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const historyIndexRef = useRef(-1)
+  const mapEditorRef = useRef(null)
   const [showStationNumbers, setShowStationNumbers] = useState(false)
   const [selectedStationId, setSelectedStationId] = useState(null)
   const [playingStationId, setPlayingStationId] = useState(null)
   const [isStationPlaying, setIsStationPlaying] = useState(false)
+  const [showTranscription, setShowTranscription] = useState(false)
+  const [currentTranscription, setCurrentTranscription] = useState('')
 
   useEffect(() => {
     const defaultPreset = trainPresets.find(p => p.id === 'simple')
@@ -95,28 +100,45 @@ function App() {
       gridIndexY: station.gridIndexY ?? Math.round(station.y / baseSpacing)
     }))
     
-    // Reset announcement state
-    const emptyAudioAssignments = {}
-    const emptyAnnouncementTypes = {}
-    const emptyBetweenSegments = {}
-    const emptyUploadedAudios = []
+    // Convert filename-based audio assignments to URL-based
+    const processedAudioAssignments = {}
+    const rawAudioAssignments = preset.audioAssignments || {}
+    Object.keys(rawAudioAssignments).forEach(slotId => {
+      const assignment = rawAudioAssignments[slotId]
+      if (assignment.filename) {
+        processedAudioAssignments[slotId] = {
+          ...assignment,
+          url: getPresetPath(assignment.filename)
+        }
+      } else {
+        processedAudioAssignments[slotId] = assignment
+      }
+    })
+    
+    const initialAudioAssignments = processedAudioAssignments
+    const initialAnnouncementTypes = preset.announcementTypes || {}
+    const initialBetweenSegments = preset.betweenSegments || {}
+    const initialUploadedAudios = preset.uploadedAudios || []
+    const initialGeneratedAudioHistory = {}
     
     // Use base setters to avoid saving preset load to history
     setStations(stationsWithIndices)
     setLines(preset.lines)
-    setAudioAssignments(emptyAudioAssignments)
-    setAnnouncementTypes(emptyAnnouncementTypes)
-    setBetweenSegments(emptyBetweenSegments)
-    setUploadedAudios(emptyUploadedAudios)
+    setAudioAssignments(initialAudioAssignments)
+    setAnnouncementTypes(initialAnnouncementTypes)
+    setBetweenSegments(initialBetweenSegments)
+    setUploadedAudios(initialUploadedAudios)
+    setGeneratedAudioHistory(initialGeneratedAudioHistory)
     
     // Now save this as the initial history state
     setHistory([{
       stations: stationsWithIndices,
       lines: preset.lines,
-      audioAssignments: emptyAudioAssignments,
-      announcementTypes: emptyAnnouncementTypes,
-      betweenSegments: emptyBetweenSegments,
-      uploadedAudios: emptyUploadedAudios
+      audioAssignments: initialAudioAssignments,
+      announcementTypes: initialAnnouncementTypes,
+      betweenSegments: initialBetweenSegments,
+      uploadedAudios: initialUploadedAudios,
+      generatedAudioHistory: initialGeneratedAudioHistory
     }])
     setHistoryIndex(0)
     
@@ -135,14 +157,15 @@ function App() {
   }, [historyIndex])
 
   // Save state to history - using structuredClone for better performance
-  const saveToHistory = useCallback((newStations, newLines, newAudioAssignments, newAnnouncementTypes, newBetweenSegments, newUploadedAudios) => {
+  const saveToHistory = useCallback((newStations, newLines, newAudioAssignments, newAnnouncementTypes, newBetweenSegments, newUploadedAudios, newGeneratedAudioHistory) => {
     const newState = {
       stations: structuredClone(newStations),
       lines: structuredClone(newLines),
       audioAssignments: structuredClone(newAudioAssignments),
       announcementTypes: structuredClone(newAnnouncementTypes),
       betweenSegments: structuredClone(newBetweenSegments),
-      uploadedAudios: structuredClone(newUploadedAudios)
+      uploadedAudios: structuredClone(newUploadedAudios),
+      generatedAudioHistory: structuredClone(newGeneratedAudioHistory)
     }
     
     setHistory(prevHistory => {
@@ -166,81 +189,94 @@ function App() {
     if (typeof newStations === 'function') {
       setStations(prev => {
         const updated = newStations(prev)
-        saveToHistory(updated, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios)
+        saveToHistory(updated, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
         return updated
       })
     } else {
-      saveToHistory(newStations, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios)
+      saveToHistory(newStations, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
       setStations(newStations)
     }
-  }, [lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, saveToHistory])
+  }, [lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory])
 
   // Wrap setLines to save history
   const updateLines = useCallback((newLines) => {
     if (typeof newLines === 'function') {
       setLines(prev => {
         const updated = newLines(prev)
-        saveToHistory(stations, updated, audioAssignments, announcementTypes, betweenSegments, uploadedAudios)
+        saveToHistory(stations, updated, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
         return updated
       })
     } else {
-      saveToHistory(stations, newLines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios)
+      saveToHistory(stations, newLines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
       setLines(newLines)
     }
-  }, [stations, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, saveToHistory])
+  }, [stations, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory])
 
   // Wrap announcement state setters to save history
   const updateAudioAssignments = useCallback((newAssignments) => {
     if (typeof newAssignments === 'function') {
       setAudioAssignments(prev => {
         const updated = newAssignments(prev)
-        saveToHistory(stations, lines, updated, announcementTypes, betweenSegments, uploadedAudios)
+        saveToHistory(stations, lines, updated, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
         return updated
       })
     } else {
-      saveToHistory(stations, lines, newAssignments, announcementTypes, betweenSegments, uploadedAudios)
+      saveToHistory(stations, lines, newAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
       setAudioAssignments(newAssignments)
     }
-  }, [stations, lines, announcementTypes, betweenSegments, uploadedAudios, saveToHistory])
+  }, [stations, lines, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory])
 
   const updateAnnouncementTypes = useCallback((newTypes) => {
     if (typeof newTypes === 'function') {
       setAnnouncementTypes(prev => {
         const updated = newTypes(prev)
-        saveToHistory(stations, lines, audioAssignments, updated, betweenSegments, uploadedAudios)
+        saveToHistory(stations, lines, audioAssignments, updated, betweenSegments, uploadedAudios, generatedAudioHistory)
         return updated
       })
     } else {
-      saveToHistory(stations, lines, audioAssignments, newTypes, betweenSegments, uploadedAudios)
+      saveToHistory(stations, lines, audioAssignments, newTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
       setAnnouncementTypes(newTypes)
     }
-  }, [stations, lines, audioAssignments, betweenSegments, uploadedAudios, saveToHistory])
+  }, [stations, lines, audioAssignments, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory])
 
   const updateBetweenSegments = useCallback((newSegments) => {
     if (typeof newSegments === 'function') {
       setBetweenSegments(prev => {
         const updated = newSegments(prev)
-        saveToHistory(stations, lines, audioAssignments, announcementTypes, updated, uploadedAudios)
+        saveToHistory(stations, lines, audioAssignments, announcementTypes, updated, uploadedAudios, generatedAudioHistory)
         return updated
       })
     } else {
-      saveToHistory(stations, lines, audioAssignments, announcementTypes, newSegments, uploadedAudios)
+      saveToHistory(stations, lines, audioAssignments, announcementTypes, newSegments, uploadedAudios, generatedAudioHistory)
       setBetweenSegments(newSegments)
     }
-  }, [stations, lines, audioAssignments, announcementTypes, uploadedAudios, saveToHistory])
+  }, [stations, lines, audioAssignments, announcementTypes, uploadedAudios, generatedAudioHistory, saveToHistory])
 
   const updateUploadedAudios = useCallback((newAudios) => {
     if (typeof newAudios === 'function') {
       setUploadedAudios(prev => {
         const updated = newAudios(prev)
-        saveToHistory(stations, lines, audioAssignments, announcementTypes, betweenSegments, updated)
+        saveToHistory(stations, lines, audioAssignments, announcementTypes, betweenSegments, updated, generatedAudioHistory)
         return updated
       })
     } else {
-      saveToHistory(stations, lines, audioAssignments, announcementTypes, betweenSegments, newAudios)
+      saveToHistory(stations, lines, audioAssignments, announcementTypes, betweenSegments, newAudios, generatedAudioHistory)
       setUploadedAudios(newAudios)
     }
-  }, [stations, lines, audioAssignments, announcementTypes, betweenSegments, saveToHistory])
+  }, [stations, lines, audioAssignments, announcementTypes, betweenSegments, generatedAudioHistory, saveToHistory])
+
+  const updateGeneratedAudioHistory = useCallback((newHistory) => {
+    if (typeof newHistory === 'function') {
+      setGeneratedAudioHistory(prev => {
+        const updated = newHistory(prev)
+        saveToHistory(stations, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, updated)
+        return updated
+      })
+    } else {
+      saveToHistory(stations, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, newHistory)
+      setGeneratedAudioHistory(newHistory)
+    }
+  }, [stations, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, saveToHistory])
 
   const handleUndo = () => {
     if (historyIndex > 0) {
@@ -253,6 +289,7 @@ function App() {
       setAnnouncementTypes(state.announcementTypes || {})
       setBetweenSegments(state.betweenSegments || {})
       setUploadedAudios(state.uploadedAudios || [])
+      setGeneratedAudioHistory(state.generatedAudioHistory || {})
     }
   }
 
@@ -267,6 +304,7 @@ function App() {
       setAnnouncementTypes(state.announcementTypes || {})
       setBetweenSegments(state.betweenSegments || {})
       setUploadedAudios(state.uploadedAudios || [])
+      setGeneratedAudioHistory(state.generatedAudioHistory || {})
     }
   }
 
@@ -336,6 +374,7 @@ function App() {
         
         <div className="flex-1 border-r border-gray-200 dark:border-gray-700 relative">
           <MapEditor
+            ref={mapEditorRef}
             stations={stations}
             setStations={updateStations}
             setStationsNoHistory={setStations}
@@ -352,6 +391,9 @@ function App() {
             selectedStationId={selectedStationId}
             playingStationId={playingStationId}
             isStationPlaying={isStationPlaying}
+            showTranscription={showTranscription}
+            setShowTranscription={setShowTranscription}
+            currentTranscription={currentTranscription}
           />
           
           {isMobile && (
@@ -396,6 +438,8 @@ function App() {
               setBetweenSegments={updateBetweenSegments}
               uploadedAudios={uploadedAudios}
               setUploadedAudios={updateUploadedAudios}
+              generatedAudioHistory={generatedAudioHistory}
+              setGeneratedAudioHistory={updateGeneratedAudioHistory}
               apiKey={apiKey}
               language={language}
               isMobile={isMobile}
@@ -404,6 +448,9 @@ function App() {
               selectedStationId={selectedStationId}
               showStationNumbers={showStationNumbers}
               onPlayingStationChange={handlePlayingStationChange}
+              showTranscription={showTranscription}
+              setShowTranscription={setShowTranscription}
+              setCurrentTranscription={setCurrentTranscription}
             />
           </div>
         )}
