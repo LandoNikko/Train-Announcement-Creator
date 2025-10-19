@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react'
-import { Crosshair, CheckCircle, GitCommitVertical, FileText } from 'lucide-react'
+import { ScanEye, CheckCircle, GitCommitVertical, FileText, Info } from 'lucide-react'
 import GridCanvas from './GridCanvas'
 import StationMarker from './StationMarker'
 import TrainLine from './TrainLine'
@@ -13,8 +13,10 @@ const MapEditor = forwardRef(({
   setStations, 
   setStationsNoHistory,
   lines, 
-  setLines, 
+  setLines,
+  setStationsAndLines,
   currentTool,
+  setCurrentTool,
   selectedStations,
   setSelectedStations,
   gridZoom = 1,
@@ -27,7 +29,8 @@ const MapEditor = forwardRef(({
   isStationPlaying = false,
   showTranscription = false,
   setShowTranscription,
-  currentTranscription = ''
+  currentTranscription = '',
+  selectedLineId = null
 }, ref) => {
   const { t } = useTranslation(language)
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1200, height: 800 })
@@ -43,6 +46,9 @@ const MapEditor = forwardRef(({
   const [pathCreationPoints, setPathCreationPoints] = useState([])
   const [currentLineColor, setCurrentLineColor] = useState('#ef4444')
   const [isAnimating, setIsAnimating] = useState(false)
+  const [showLoopModal, setShowLoopModal] = useState(false)
+  const [loopModalData, setLoopModalData] = useState(null)
+  const [stationBeforeDrag, setStationBeforeDrag] = useState(null)
   const svgRef = useRef(null)
   const containerRef = useRef(null)
   const animationFrameRef = useRef(null)
@@ -111,6 +117,77 @@ const MapEditor = forwardRef(({
     return letters[lineIndex % letters.length]
   }
 
+  // Helper function to find closest point on a line segment
+  const getClosestPointOnSegment = (px, py, x1, y1, x2, y2) => {
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const lengthSquared = dx * dx + dy * dy
+    
+    if (lengthSquared === 0) return { x: x1, y: y1, distance: Math.sqrt((px - x1) ** 2 + (py - y1) ** 2) }
+    
+    let t = ((px - x1) * dx + (py - y1) * dy) / lengthSquared
+    t = Math.max(0, Math.min(1, t))
+    
+    const closestX = x1 + t * dx
+    const closestY = y1 + t * dy
+    const distance = Math.sqrt((px - closestX) ** 2 + (py - closestY) ** 2)
+    
+    return { x: closestX, y: closestY, distance, t }
+  }
+
+  // Helper function to check if a station is near any line and insert it
+  const addStationToNearbyLine = (newStation) => {
+    const proximityThreshold = gridSpacing * 1 // 1 grid space
+    
+    for (const line of lines) {
+      const lineStations = line.stations
+        .map(id => stations.find(s => s.id === id))
+        .filter(Boolean)
+      
+      if (lineStations.length < 2) continue
+      
+      // Check each segment of the line
+      for (let i = 0; i < lineStations.length - 1; i++) {
+        const s1 = lineStations[i]
+        const s2 = lineStations[i + 1]
+        
+        const closest = getClosestPointOnSegment(
+          newStation.x, newStation.y,
+          s1.x, s1.y,
+          s2.x, s2.y
+        )
+        
+        if (closest.distance <= proximityThreshold) {
+          // Insert the station into the line at this position
+          const updatedLines = lines.map(l => {
+            if (l.id === line.id) {
+              const newStations = [...l.stations]
+              newStations.splice(i + 1, 0, newStation.id)
+              return { ...l, stations: newStations }
+            }
+            return l
+          })
+          
+          // Update station color to match line
+          const stationWithColor = { ...newStation, color: line.color }
+          
+          // Use combined update for atomic operation
+          if (setStationsAndLines) {
+            setStationsAndLines([...stations, stationWithColor], updatedLines)
+          } else {
+            setStations([...stations, stationWithColor])
+            setLines(updatedLines)
+          }
+          return true
+        }
+      }
+    }
+    
+    // No line nearby, just add the station
+    setStations([...stations, newStation])
+    return false
+  }
+
   const handleCanvasClick = (e) => {
     if (currentTool === 'station') {
       if (e.target.tagName === 'circle' && e.target.classList.contains('grid-dot')) {
@@ -129,7 +206,7 @@ const MapEditor = forwardRef(({
           name: getNextStationName(stations, language),
           color: '#3b82f6'
         }
-        setStations([...stations, newStation])
+        addStationToNearbyLine(newStation)
       } else if (e.target.tagName === 'rect' || e.target === svgRef.current) {
         const svgPoint = getSVGPoint(e.clientX, e.clientY)
         const nearestX = Math.round(svgPoint.x / gridSpacing) * gridSpacing
@@ -147,7 +224,7 @@ const MapEditor = forwardRef(({
           name: getNextStationName(stations, language),
           color: '#3b82f6'
         }
-        setStations([...stations, newStation])
+        addStationToNearbyLine(newStation)
       }
     }
     else if (currentTool === 'createLine') {
@@ -209,6 +286,33 @@ const MapEditor = forwardRef(({
       }
     }
   }
+  
+  const handleLineCreationStationClick = (station, e) => {
+    if (currentTool === 'createLine') {
+      e.stopPropagation()
+      
+      // Check if clicking the first created station to create a loop
+      if (lineCreationStations.length >= 2 && lineCreationStations[0].id === station.id) {
+        // Create a loop line by finishing with the first station
+        finishLineCreation(true)
+      } 
+      // Check if clicking the first existing station (when we have at least one created station)
+      else if (lineCreationStations.length >= 1 && lineCreationStations[0].id === station.id) {
+        // Complete the loop
+        finishLineCreation(true)
+      }
+      else {
+        setLineCreationStations([...lineCreationStations, station])
+      }
+    }
+  }
+  
+  const handlePathCreationStationClick = (station, e) => {
+    if (currentTool === 'drawPath') {
+      e.stopPropagation()
+      setPathCreationPoints([...pathCreationPoints, { x: station.x, y: station.y, gridIndexX: station.gridIndexX, gridIndexY: station.gridIndexY }])
+    }
+  }
 
   const handleStationClick = (station, e) => {
     e.stopPropagation()
@@ -224,6 +328,8 @@ const MapEditor = forwardRef(({
       const svgPoint = getSVGPoint(e.clientX, e.clientY)
       setDraggingStation(station)
       setEditingStation(null)
+      setEditingLine(null)
+      setStationBeforeDrag({ ...station })
       setDragOffset({
         x: svgPoint.x - station.x,
         y: svgPoint.y - station.y
@@ -232,7 +338,8 @@ const MapEditor = forwardRef(({
   }
 
   const handleStationUpdate = (updatedStation) => {
-    setStations(stations.map(s => s.id === updatedStation.id ? updatedStation : s))
+    const updatedStations = stations.map(s => s.id === updatedStation.id ? updatedStation : s)
+    setStations(updatedStations)
   }
 
   const handleStationDelete = (stationId) => {
@@ -286,6 +393,7 @@ const MapEditor = forwardRef(({
       setIsPanning(true)
       setPanStart({ x: e.clientX, y: e.clientY })
       setEditingStation(null)
+      setEditingLine(null)
       e.preventDefault()
     }
   }
@@ -331,9 +439,103 @@ const MapEditor = forwardRef(({
 
   const handleMouseUp = () => {
     if (draggingStation) {
-      setStations(stations)
+      // Check if this station is first or last in any line
+      const affectedLines = lines.filter(line => {
+        const stationIds = line.stations
+        const firstId = stationIds[0]
+        const lastId = stationIds[stationIds.length - 1]
+        return draggingStation.id === firstId || draggingStation.id === lastId
+      })
+      
+      // Check if dragged on top of the opposite end station
+      for (const line of affectedLines) {
+        const stationIds = line.stations
+        const firstId = stationIds[0]
+        const lastId = stationIds[stationIds.length - 1]
+        
+        // Skip if already a loop
+        if (firstId === lastId) continue
+        
+        // Make sure we're not comparing the same station
+        if (firstId === lastId) continue
+        
+        const firstStation = stations.find(s => s.id === firstId)
+        const lastStation = stations.find(s => s.id === lastId)
+        
+        // Make sure both stations exist and are different
+        if (!firstStation || !lastStation || firstStation.id === lastStation.id) continue
+        
+        // Check if first and last stations are now at the same position
+        const distance = Math.sqrt(
+          Math.pow(firstStation.x - lastStation.x, 2) + 
+          Math.pow(firstStation.y - lastStation.y, 2)
+        )
+        
+        if (distance < gridSpacing / 2) {
+          // Show modal to choose which station to keep
+          setLoopModalData({
+            line,
+            firstStation: { ...firstStation },
+            lastStation: { ...lastStation },
+            draggedStation: { ...draggingStation }
+          })
+          setShowLoopModal(true)
+          return // Don't commit the drag yet
+        }
+      }
+      
+      // Normal drag completion - commit the changes to history
+      setStations([...stations])
+      setStationBeforeDrag(null)
     }
     setIsPanning(false)
+    setDraggingStation(null)
+  }
+
+  const handleLoopModalChoice = (choice) => {
+    if (!loopModalData) return
+    
+    const { line, firstStation, lastStation, draggedStation } = loopModalData
+    
+    if (choice === 'cancel') {
+      // Revert to original position using setStationsNoHistory to avoid creating history entry
+      if (stationBeforeDrag) {
+        setStationsNoHistory(prev => prev.map(s => 
+          s.id === draggedStation.id ? stationBeforeDrag : s
+        ))
+      }
+    } else {
+      // Keep the chosen station, remove the other, and create loop
+      const stationToKeep = choice === 'first' ? firstStation : lastStation
+      const stationToRemove = choice === 'first' ? lastStation : firstStation
+      
+      // Update the line to create a loop by replacing the removed station with the kept one
+      const updatedLines = lines.map(l => {
+        if (l.id === line.id) {
+          const newStations = l.stations.map(id => 
+            id === stationToRemove.id ? stationToKeep.id : id
+          )
+          return { ...l, stations: newStations }
+        }
+        return l
+      })
+      
+      // Remove the duplicate station in one atomic operation
+      const updatedStations = stations.filter(s => s.id !== stationToRemove.id)
+      
+      // Update both stations and lines together in one history entry
+      if (setStationsAndLines) {
+        setStationsAndLines(updatedStations, updatedLines)
+      } else {
+        // Fallback if combined function not available
+        setStations(updatedStations)
+        setLines(updatedLines)
+      }
+    }
+    
+    setShowLoopModal(false)
+    setLoopModalData(null)
+    setStationBeforeDrag(null)
     setDraggingStation(null)
   }
 
@@ -346,13 +548,20 @@ const MapEditor = forwardRef(({
     }
   }
 
-  const finishLineCreation = () => {
+  const finishLineCreation = (isLoop = false) => {
     if (lineCreationStations.length >= 2) {
       const newStations = [...stations, ...lineCreationStations]
+      const stationIds = lineCreationStations.map(s => s.id)
+      
+      // Add first station again at the end for loop lines
+      if (isLoop) {
+        stationIds.push(lineCreationStations[0].id)
+      }
+      
       const newLine = {
         id: `line-${Date.now()}`,
         name: `Line ${lines.length + 1}`,
-        stations: lineCreationStations.map(s => s.id),
+        stations: stationIds,
         color: currentLineColor,
         tension: 0.7
       }
@@ -360,43 +569,34 @@ const MapEditor = forwardRef(({
       setLines([...lines, newLine])
       setLineCreationStations([])
       setCurrentLineColor(getLineColors())
+      
+      // Switch to select tool after finishing
+      if (setCurrentTool) {
+        setCurrentTool('select')
+      }
     }
   }
 
   const finishPathCreation = () => {
     if (pathCreationPoints.length >= 2) {
-      const numStations = Math.max(2, Math.floor(pathCreationPoints.length / 2) + 1)
-      const newStations = []
-      
-      for (let i = 0; i < numStations; i++) {
-        const t = i / (numStations - 1)
-        const pointIndex = Math.floor(t * (pathCreationPoints.length - 1))
-        const point = pathCreationPoints[pointIndex]
-        
-        newStations.push({
-          id: `station-${Date.now()}-${i}`,
-          gridIndexX: point.gridIndexX,
-          gridIndexY: point.gridIndexY,
-          x: point.x,
-          y: point.y,
-          name: getNextStationName([...stations, ...newStations], language),
-          color: currentLineColor
-        })
-      }
-      
-      const allStations = [...stations, ...newStations]
+      // Create line without stations - just the path points
       const newLine = {
         id: `line-${Date.now()}`,
         name: `Line ${lines.length + 1}`,
-        stations: newStations.map(s => s.id),
+        stations: [], // No stations for path-only lines
+        pathPoints: pathCreationPoints, // Store the path points
         color: currentLineColor,
         tension: 0.7
       }
       
-      setStations(allStations)
       setLines([...lines, newLine])
       setPathCreationPoints([])
       setCurrentLineColor(getLineColors())
+      
+      // Switch to select tool after finishing
+      if (setCurrentTool) {
+        setCurrentTool('select')
+      }
     }
   }
 
@@ -470,40 +670,32 @@ const MapEditor = forwardRef(({
   }, [])
 
   const renderGhostLine = () => {
-    if (currentTool === 'createLine' && lineCreationStations.length > 0 && mousePosition) {
-      const points = [...lineCreationStations, { x: mousePosition.x, y: mousePosition.y }]
-      const pathData = points.map((p, i) => 
-        `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
-      ).join(' ')
+    if (currentTool === 'createLine' && lineCreationStations.length > 0 && hoverGridPoint) {
+      const points = [...lineCreationStations, hoverGridPoint]
       
       return (
-        <path
-          d={pathData}
-          stroke={currentLineColor}
-          strokeWidth="3"
-          fill="none"
-          strokeDasharray="5,5"
-          opacity="0.5"
-          pointerEvents="none"
+        <TrainLine
+          line={{ stations: [], color: currentLineColor }}
+          stations={[]}
+          lineStyle={lineStyle}
+          isGhost={true}
+          ghostPoints={points}
+          color={currentLineColor}
         />
       )
     }
     
-    if (currentTool === 'drawPath' && pathCreationPoints.length > 0 && mousePosition) {
-      const points = [...pathCreationPoints, { x: mousePosition.x, y: mousePosition.y }]
-      const pathData = points.map((p, i) => 
-        `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
-      ).join(' ')
+    if (currentTool === 'drawPath' && pathCreationPoints.length > 0 && hoverGridPoint) {
+      const points = [...pathCreationPoints, hoverGridPoint]
       
       return (
-        <path
-          d={pathData}
-          stroke={currentLineColor}
-          strokeWidth="3"
-          fill="none"
-          strokeDasharray="5,5"
-          opacity="0.5"
-          pointerEvents="none"
+        <TrainLine
+          line={{ stations: [], color: currentLineColor }}
+          stations={[]}
+          lineStyle={lineStyle}
+          isGhost={true}
+          ghostPoints={points}
+          color={currentLineColor}
         />
       )
     }
@@ -516,6 +708,11 @@ const MapEditor = forwardRef(({
     
     const linePrefix = getLinePrefix(lineIndex)
     if (linePrefix) {
+      // If there are 2 or more lines, display without colon (e.g., "A1")
+      if (lines.length >= 2) {
+        return `${linePrefix}${stationIndex + 1} ${station.name}`
+      }
+      // If only 1 line, display with colon (e.g., "A1: Station Name")
       return `${linePrefix}${stationIndex + 1}: ${station.name}`
     }
     
@@ -569,6 +766,11 @@ const MapEditor = forwardRef(({
           const lineIndex = stationLine ? lines.indexOf(stationLine) : 0
           const stationIndexInLine = stationLine ? stationLine.stations.indexOf(station.id) : index
           
+          // Check if this is the first station and can complete a loop
+          const canCompleteLoop = currentTool === 'createLine' && 
+            lineCreationStations.length >= 2 && 
+            lineCreationStations[0].id === station.id
+          
           return (
             <StationMarker
               key={station.id}
@@ -578,9 +780,17 @@ const MapEditor = forwardRef(({
               }}
               isSelected={selectedStations.some(s => s.id === station.id)}
               isDragging={draggingStation?.id === station.id}
-              isHighlighted={selectedStationId === station.id}
+              isHighlighted={selectedStationId === station.id || canCompleteLoop}
               isPlaying={playingStationId === station.id && isStationPlaying}
-              onClick={(e) => handleStationClick(station, e)}
+              onClick={(e) => {
+                if (currentTool === 'createLine') {
+                  handleLineCreationStationClick(station, e)
+                } else if (currentTool === 'drawPath') {
+                  handlePathCreationStationClick(station, e)
+                } else {
+                  handleStationClick(station, e)
+                }
+              }}
               onMouseDown={(e) => handleStationMouseDown(station, e)}
               allStations={allDisplayStations}
             />
@@ -623,21 +833,36 @@ const MapEditor = forwardRef(({
 
       {lines.length > 0 && (
         <div className="absolute top-4 left-4 flex flex-col gap-2">
-          {lines.map((line) => (
-            <div 
-              key={line.id}
-              className="flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-md"
-            >
-              <GitCommitVertical 
-                size={16} 
-                style={{ color: line.color }}
-                className="flex-shrink-0"
-              />
-              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                {line.name}
-              </span>
-            </div>
-          ))}
+          {lines.map((line) => {
+            const isSelected = selectedLineId === line.id && lines.length > 1
+            return (
+              <button
+                key={line.id}
+                onClick={() => {
+                  if (editingLine?.id === line.id) {
+                    setEditingLine(null)
+                  } else {
+                    setEditingLine(line)
+                    setEditingStation(null)
+                  }
+                }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${
+                  isSelected 
+                    ? 'bg-white dark:bg-gray-800 border border-blue-500' 
+                    : 'bg-white dark:bg-gray-800 border border-transparent'
+                }`}
+              >
+                <GitCommitVertical 
+                  size={16} 
+                  style={{ color: line.color }}
+                  className="flex-shrink-0"
+                />
+                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                  {line.name}
+                </span>
+              </button>
+            )
+          })}
         </div>
       )}
 
@@ -654,34 +879,37 @@ const MapEditor = forwardRef(({
         </div>
       )}
 
+      {/* Tooltip at top center */}
+      {(currentTool === 'station' || currentTool === 'createLine' || currentTool === 'drawPath') && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
+          <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md text-sm text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 flex items-center gap-2">
+            <Info size={14} className="flex-shrink-0" />
+            <span>
+              {currentTool === 'station' && t('clickGridToAddStation')}
+              {currentTool === 'createLine' && lineCreationStations.length === 0 && (isMobile ? t('tapToAddStations') : t('clickToAddStations'))}
+              {currentTool === 'createLine' && lineCreationStations.length > 0 && lineCreationStations.length < 2 && 'Add more stations or right-click to finish'}
+              {currentTool === 'createLine' && lineCreationStations.length >= 2 && 'Click first station to create loop, or right-click to finish'}
+              {currentTool === 'drawPath' && (isMobile ? t('tapToDrawPath') : t('clickToDrawPath'))}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Action buttons at bottom left */}
       <div className="absolute bottom-4 left-4 flex items-center gap-3">
         <button
           onClick={handleCenterView}
           disabled={stations.length === 0}
-          className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200 dark:border-gray-700"
         >
-          <Crosshair size={16} />
+          <ScanEye size={16} />
           <span>{t('centerView')}</span>
         </button>
-
-        {setShowTranscription && (
-          <button
-            onClick={() => setShowTranscription(!showTranscription)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-md text-sm transition-colors ${
-              showTranscription
-                ? 'bg-blue-500 text-white hover:bg-blue-600'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-            }`}
-          >
-            <FileText size={16} />
-            <span>Transcription</span>
-          </button>
-        )}
         
         {(currentTool === 'createLine' && lineCreationStations.length >= 2) && (
           <button
             onClick={finishLineCreation}
-            className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-md text-sm hover:bg-green-600 transition-colors"
+            className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-md text-sm hover:bg-green-600 transition-colors border border-green-500"
           >
             <CheckCircle size={16} />
             <span>{t('finishLine')}</span>
@@ -691,19 +919,68 @@ const MapEditor = forwardRef(({
         {(currentTool === 'drawPath' && pathCreationPoints.length >= 2) && (
           <button
             onClick={finishPathCreation}
-            className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-md text-sm hover:bg-green-600 transition-colors"
+            className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-md text-sm hover:bg-green-600 transition-colors border border-green-500"
           >
             <CheckCircle size={16} />
             <span>{t('finishLine')}</span>
           </button>
         )}
-        
-        <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md text-sm text-gray-600 dark:text-gray-300">
-          {currentTool === 'station' && t('clickGridToAddStation')}
-          {currentTool === 'createLine' && (isMobile ? t('tapToAddStations') : t('clickToAddStations'))}
-          {currentTool === 'drawPath' && (isMobile ? t('tapToDrawPath') : t('clickToDrawPath'))}
-        </div>
       </div>
+
+      {/* Loop Station Choice Modal */}
+      {showLoopModal && loopModalData && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 max-w-md w-full mx-4">
+            <h3 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-2">
+              {t('createLoopLine')}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              {t('selectLoopStation')}
+            </p>
+            
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => handleLoopModalChoice('first')}
+                className="flex-1 px-3 py-2 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: loopModalData.line.color }}
+                    />
+                    <span className="font-medium text-sm">{loopModalData.firstStation.name}</span>
+                  </div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{t('firstStation')}</span>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => handleLoopModalChoice('last')}
+                className="flex-1 px-3 py-2 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: loopModalData.line.color }}
+                    />
+                    <span className="font-medium text-sm">{loopModalData.lastStation.name}</span>
+                  </div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{t('lastStation')}</span>
+                </div>
+              </button>
+            </div>
+            
+            <button
+              onClick={() => handleLoopModalChoice('cancel')}
+              className="w-full px-3 py-2 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-300 rounded-lg transition-colors text-sm border border-gray-300 dark:border-gray-600"
+            >
+              {t('cancel')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 })

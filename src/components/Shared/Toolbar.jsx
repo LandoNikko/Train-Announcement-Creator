@@ -1,4 +1,4 @@
-import { Pointer, MapPin, Minus, Key, Info, RotateCcw, ZoomIn, ZoomOut, Globe, Undo2, Redo2, ChevronUp, GitBranch, Pencil, Hash } from 'lucide-react'
+import { MousePointer2, MapPin, Minus, Key, Info, RotateCcw, ZoomIn, ZoomOut, Globe, Undo2, Redo2, ChevronUp, GitBranch, Pencil, Hash } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from '../../hooks/useTranslation'
 import { languages } from '../../locales/translations'
@@ -8,7 +8,7 @@ const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMod
   const [showLanguageMenu, setShowLanguageMenu] = useState(false)
   const languageMenuRef = useRef(null)
   const tools = [
-    { id: 'select', icon: Pointer, label: t('selectTool') },
+    { id: 'select', icon: MousePointer2, label: t('selectTool') },
     { id: 'station', icon: MapPin, label: t('addStationTool') },
     { id: 'createLine', icon: GitBranch, label: t('createTrainLineTool') },
     { id: 'drawPath', icon: Pencil, label: t('drawPathTool') },
@@ -38,21 +38,53 @@ const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMod
             {t('appTitle')}
           </button>
           
-          <div className="flex gap-2">
-            {tools.map(tool => (
-              <button
-                key={tool.id}
-                onClick={() => onToolChange(tool.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  currentTool === tool.id
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                <tool.icon size={18} />
-                <span className="text-sm font-medium">{tool.label}</span>
-              </button>
-            ))}
+          <div 
+            className="flex gap-0 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden"
+            style={{ backgroundColor: 'var(--toolbar-group-bg)' }}
+          >
+            <button
+              onClick={() => onToolChange('select')}
+              className={`flex items-center gap-2 px-4 py-2 transition-colors ${
+                currentTool === 'select' ? 'btn-selected' : 'btn-unselected'
+              }`}
+            >
+              <MousePointer2 size={18} />
+              <span className="text-sm font-medium">{t('selectTool')}</span>
+            </button>
+            
+            <button
+              onClick={() => onToolChange('createLine')}
+              className={`flex items-center gap-2 px-4 py-2 transition-colors ${
+                currentTool === 'createLine' ? 'btn-selected' : 'btn-unselected'
+              }`}
+            >
+              <GitBranch size={18} />
+              <span className="text-sm font-medium">{t('createTrainLineTool')}</span>
+            </button>
+            
+            {(currentTool === 'createLine' || currentTool === 'station' || currentTool === 'drawPath') && (
+              <>
+                <button
+                  onClick={() => onToolChange('station')}
+                  className={`flex items-center gap-2 px-4 py-2 transition-colors ${
+                    currentTool === 'station' ? 'btn-selected' : 'btn-unselected'
+                  }`}
+                >
+                  <MapPin size={18} />
+                  <span className="text-sm font-medium">{t('addStationTool')}</span>
+                </button>
+                
+                <button
+                  onClick={() => onToolChange('drawPath')}
+                  className={`flex items-center gap-2 px-4 py-2 transition-colors ${
+                    currentTool === 'drawPath' ? 'btn-selected' : 'btn-unselected'
+                  }`}
+                >
+                  <Pencil size={18} />
+                  <span className="text-sm font-medium">{t('drawPathTool')}</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -69,43 +101,37 @@ const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMod
           <Hash size={18} />
         </button>
 
-        <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-          <span className="text-xs text-gray-600 dark:text-gray-400 mr-1">{t('lineStyle')}:</span>
-          <div className="flex gap-1">
-            <button
-              onClick={() => onLineStyleChange('direct')}
-              className={`px-2 py-1 text-xs rounded transition-colors ${
-                lineStyle === 'direct'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
-              }`}
-              title={t('lineStyleDirect')}
-            >
-              ─
-            </button>
-            <button
-              onClick={() => onLineStyleChange('minimal')}
-              className={`px-2 py-1 text-xs rounded transition-colors ${
-                lineStyle === 'minimal'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
-              }`}
-              title={t('lineStyleMinimal')}
-            >
-              <i className="ri-loader-5-fill"></i>
-            </button>
-            <button
-              onClick={() => onLineStyleChange('smooth')}
-              className={`flex items-center justify-center px-2 py-1 text-base rounded transition-colors ${
-                lineStyle === 'smooth'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
-              }`}
-              title={t('lineStyleSmooth')}
-            >
-              ∿
-            </button>
-          </div>
+        <div 
+          className="flex gap-0 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden"
+          style={{ backgroundColor: 'var(--toolbar-group-bg)' }}
+        >
+          <button
+            onClick={() => onLineStyleChange('direct')}
+            className={`flex items-center justify-center px-2 py-1 transition-colors ${
+              lineStyle === 'direct' ? 'btn-selected' : 'btn-unselected'
+            }`}
+            title={t('lineStyleDirect')}
+          >
+            <span className="text-lg font-medium">─</span>
+          </button>
+          <button
+            onClick={() => onLineStyleChange('minimal')}
+            className={`flex items-center justify-center px-2 py-1 transition-colors ${
+              lineStyle === 'minimal' ? 'btn-selected' : 'btn-unselected'
+            }`}
+            title={t('lineStyleMinimal')}
+          >
+            <i className="ri-loader-5-fill text-lg"></i>
+          </button>
+          <button
+            onClick={() => onLineStyleChange('smooth')}
+            className={`flex items-center justify-center px-2 py-1 transition-colors ${
+              lineStyle === 'smooth' ? 'btn-selected' : 'btn-unselected'
+            }`}
+            title={t('lineStyleSmooth')}
+          >
+            <span className="text-xl">∿</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
@@ -117,7 +143,7 @@ const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMod
             step="0.1"
             value={gridZoom}
             onChange={(e) => onGridZoomChange(parseFloat(e.target.value))}
-            className="w-24 h-1 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"
+            className="w-24 h-1 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:hover:bg-blue-600 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:hover:bg-blue-600"
             title={`${t('zoom')}: ${Math.round(gridZoom * 100)}%`}
           />
           <ZoomIn size={16} className="text-gray-600 dark:text-gray-400" />

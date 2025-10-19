@@ -21,7 +21,8 @@ const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverP
         y={viewBox.y}
         width={viewBox.width}
         height={viewBox.height}
-        className="pointer-events-none fill-gray-50 dark:fill-gray-800"
+        className="pointer-events-none"
+        style={{ fill: 'var(--canvas-bg)' }}
       />
       {dots.map(dot => {
         const isHovered = showHoverIndicator && hoverPoint && 

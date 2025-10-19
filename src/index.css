@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   BASE STYLES
+   ============================================ */
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -17,6 +21,52 @@ body {
   overflow: hidden;
 }
 
+/* ============================================
+   CSS VARIABLES
+   ============================================ */
+
+:root {
+  --canvas-bg: #ffffff;
+  
+  --panel-bg: #ffffff;
+  
+  --btn-selected-bg: #eff6ff;
+  --btn-selected-text: #1f2937;
+  --btn-selected-border: #3b82f6;
+  
+  --btn-unselected-bg: #f3f4f6;
+  --btn-unselected-text: #1f2937;
+  --btn-unselected-hover: #f3f4f6;
+
+  --card-unselected-border: #e5e7eb;
+  --card-unselected-bg: #ffffff;
+  
+  --toolbar-group-bg: #f3f4f6;
+}
+
+.dark {
+  --canvas-bg: rgba(15, 21, 31, 0.24);
+  
+  --panel-bg: #1f2937;
+  
+  --btn-selected-bg: rgb(39, 51, 85);
+  --btn-selected-text: #e5e7eb;
+  --btn-selected-border: #3b82f6;
+  
+  --btn-unselected-bg: rgb(37, 47, 62);
+  --btn-unselected-text: #e5e7eb;
+  --btn-unselected-hover: rgb(55, 65, 81);
+  
+  --card-unselected-border: #374151;
+  --card-unselected-bg: rgb(37, 47, 62);
+  
+  --toolbar-group-bg: rgb(37, 47, 62);
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
 @keyframes sound-wave {
   0%, 100% {
     transform: scaleY(0.4);
@@ -29,4 +79,42 @@ body {
 .animate-sound-wave {
   animation: sound-wave 0.8s ease-in-out infinite;
   transform-origin: center;
+}
+
+/* ============================================
+   COMPONENT STYLES
+   ============================================ */
+
+/* Selected Button/Card State */
+.btn-selected,
+.card-selected {
+  background-color: var(--btn-selected-bg);
+  color: var(--btn-selected-text);
+  border: 1px solid var(--btn-selected-border);
+  border-radius: 0.5rem;
+}
+
+/* Unselected Button State */
+.btn-unselected {
+  background-color: var(--btn-unselected-bg);
+  color: var(--btn-unselected-text);
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+}
+
+.btn-unselected:hover {
+  background-color: var(--btn-unselected-hover);
+}
+
+/* Unselected Card State */
+.card-unselected {
+  background-color: var(--card-unselected-bg);
+  border: 1px solid var(--card-unselected-border);
+  border-radius: 0.5rem;
+}
+
+
+/* Override inline styles for dark mode backgrounds */
+.dark [style*="rgb(255, 255, 255)"] {
+  background-color: var(--btn-unselected-bg);
 }

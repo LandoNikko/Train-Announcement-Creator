@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { Play, Pause, Square, X, ChevronDown, ChevronUp, Volume2, VolumeX, SkipBack, SkipForward, List, GitCommitVertical, Building2, TrainFront, ArrowDown, AlertTriangle, Plus, RotateCcw, Music, Radio, Bell, Clock, MapPin, Info, MessageSquare, Trash2 } from 'lucide-react'
+import { Play, Pause, Square, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Volume2, VolumeX, SkipBack, SkipForward, List, GitCommitVertical, Building2, TrainFront, ArrowDown, AlertTriangle, Plus, RotateCcw, Music, Radio, Bell, Clock, MapPin, Info, MessageSquare, Trash2, FileText } from 'lucide-react'
 import { useTranslation } from '../../hooks/useTranslation'
 import { getAllPresets } from '../../data/audioPresets'
 
@@ -40,10 +40,11 @@ const AnnouncementPanel = ({
   onPlayingStationChange,
   showTranscription = false,
   setShowTranscription,
-  setCurrentTranscription
+  setCurrentTranscription,
+  selectedLineId,
+  setSelectedLineId
 }) => {
   const { t } = useTranslation(language)
-  const [selectedLineId, setSelectedLineId] = useState(null)
   const [currentlyPlaying, setCurrentlyPlaying] = useState(null)
   const [isPlayingAll, setIsPlayingAll] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
@@ -1050,22 +1051,14 @@ const AnnouncementPanel = ({
 
     return (
       <div 
-        className={`border rounded-lg transition-all overflow-visible ${
-          showHighlight
-            ? 'ring-2 ring-blue-500 border-blue-500' 
-            : 'border-gray-200 dark:border-gray-700'
+        className={`rounded-lg transition-all overflow-visible ${
+          showHighlight ? 'card-selected' : 'card-unselected'
         }`}
+        onClick={() => {
+          if (isStation && stationId) handleStationClick(stationId)
+        }}
       >
-        <div 
-          className={`p-2 transition-colors rounded-lg ${
-            showHighlight
-              ? 'bg-blue-50 dark:bg-blue-900/20' 
-              : 'bg-white dark:bg-gray-800'
-          }`}
-          onClick={() => {
-            if (isStation && stationId) handleStationClick(stationId)
-          }}
-        >
+        <div className="p-2">
           {/* Top row: Prefix space + Icon/Number, Label, Remove button, Duration */}
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
@@ -1652,7 +1645,7 @@ const AnnouncementPanel = ({
       />
       <div className="p-3 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-1.5">
-          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t('audioQueue')}</h2>
+          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t('audioControlPanel')}</h2>
           <div className="flex items-center gap-2">
             {getTotalDuration() > 0 && (
               <span className="text-xs px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
@@ -1671,23 +1664,41 @@ const AnnouncementPanel = ({
         </div>
 
         {lines.length > 1 && (
-          <select
-            value={selectedLineId || ''}
-            onChange={(e) => setSelectedLineId(e.target.value)}
-            className="w-full px-3 py-2 mb-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-800 dark:text-gray-200"
-          >
-            {lines.map(line => (
-              <option key={line.id} value={line.id}>
-                {line.name} ({line.stations.length} {t('stations')})
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2 mb-1.5">
+            <button
+              onClick={() => {
+                const currentIndex = lines.findIndex(l => l.id === selectedLineId)
+                const prevIndex = currentIndex > 0 ? currentIndex - 1 : lines.length - 1
+                setSelectedLineId(lines[prevIndex].id)
+              }}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              title="Previous line"
+            >
+              <ChevronLeft size={16} className="text-gray-600 dark:text-gray-400" />
+            </button>
+            <div className="flex-1 text-center">
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                {lines.find(l => l.id === selectedLineId)?.name || ''}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                const currentIndex = lines.findIndex(l => l.id === selectedLineId)
+                const nextIndex = currentIndex < lines.length - 1 ? currentIndex + 1 : 0
+                setSelectedLineId(lines[nextIndex].id)
+              }}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              title="Next line"
+            >
+              <ChevronRight size={16} className="text-gray-600 dark:text-gray-400" />
+            </button>
+          </div>
         )}
 
         {lineStations.length > 0 && (
           <>
             {/* Master Control Panel */}
-            <div className="flex items-center gap-1 mb-1.5">
+            <div className="flex items-center justify-center gap-1 mb-1.5">
               <button
                 onClick={() => setShowVolumeControl(!showVolumeControl)}
                 className={`${BUTTON_CLASSES} gap-0.5`}
@@ -1737,13 +1748,27 @@ const AnnouncementPanel = ({
                   <ChevronDown size={12} className="opacity-60" />
                 )}
               </button>
+              
+              {setShowTranscription && (
+                <button
+                  onClick={() => setShowTranscription(!showTranscription)}
+                  className={`flex items-center justify-center p-1.5 rounded-lg transition-colors ${
+                    showTranscription 
+                      ? 'btn-selected' 
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                  title={t('displayAudioCaptions')}
+                >
+                  <FileText size={16} />
+                </button>
+              )}
             </div>
 
             {/* Queue Progress Display */}
             <div className="mb-1.5 px-2 py-1.5 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="text-gray-600 dark:text-gray-400">
-                  {currentQueueIndex + 1} / {getOrderedQueue().length}
+                  {t('audioQueue')}: {currentQueueIndex + 1} / {getOrderedQueue().length}
                 </span>
                 <span className="text-gray-600 dark:text-gray-400">
                   {formatTime(getTotalDuration())}

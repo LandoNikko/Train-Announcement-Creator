@@ -3,6 +3,7 @@ export const trainPresets = [
     id: 'simple',
     name: 'Simple Demo',
     description: 'A simple 4-station demo route',
+    fullDescription: 'Four stations in a simple loop. Good for testing the announcement system.',
     stations: [
       { id: 'station-1', x: 300, y: 200, name: 'Central Station', color: '#8b5cf6' },
       { id: 'station-2', x: 450, y: 200, name: 'North Station', color: '#8b5cf6' },
@@ -23,6 +24,7 @@ export const trainPresets = [
     id: 'yamanote',
     name: 'Yamanote Line',
     description: 'Japan',
+    fullDescription: 'Tokyo\'s circular line with 21 stations. Connects major areas around central Tokyo.',
     stations: [
       { id: 'tokyo', x: 390, y: 240, name: 'Tokyo', color: '#10b981' },
       { id: 'yurakucho', x: 360, y: 210, name: 'Yurakucho', color: '#10b981' },
@@ -65,6 +67,7 @@ export const trainPresets = [
     id: 'chuo',
     name: 'Chuo Line',
     description: 'Japan',
+    fullDescription: 'East-west line through central Tokyo. Orange trains connect Tokyo Station to western suburbs.',
     stations: [
       { id: 'tokyo-c', x: 150, y: 300, name: 'Tokyo', color: '#f97316' },
       { id: 'kanda-c', x: 210, y: 300, name: 'Kanda', color: '#f97316' },
@@ -90,6 +93,7 @@ export const trainPresets = [
     id: 'ginza',
     name: 'Ginza Line',
     description: 'Japan',
+    fullDescription: 'Tokyo\'s oldest subway line from 1927. Runs from Shibuya to Asakusa through Ginza and Ueno.',
     stations: [
       { id: 'shibuya-g', x: 150, y: 450, name: 'Shibuya', color: '#f59e0b' },
       { id: 'omotesando', x: 210, y: 420, name: 'Omotesando', color: '#f59e0b' },
@@ -115,16 +119,17 @@ export const trainPresets = [
     id: 'taiyokei',
     name: 'Taiyokei Line',
     description: 'Solar System train line from Mercury to Pluto in Japanese',
+    fullDescription: 'Solar system route with Japanese announcements. Stations from Mercury to Pluto.',
     stations: [
-      { id: 'mercury', x: 100, y: 250, name: 'Mercury', color: '#000000' },
-      { id: 'venus', x: 160, y: 220, name: 'Venus', color: '#000000' },
-      { id: 'earth', x: 230, y: 200, name: 'Earth', color: '#000000' },
-      { id: 'mars', x: 310, y: 190, name: 'Mars', color: '#000000' },
-      { id: 'jupiter', x: 400, y: 200, name: 'Jupiter', color: '#000000' },
-      { id: 'saturn', x: 490, y: 220, name: 'Saturn', color: '#000000' },
-      { id: 'uranus', x: 570, y: 250, name: 'Uranus', color: '#000000' },
-      { id: 'neptune', x: 640, y: 290, name: 'Neptune', color: '#000000' },
-      { id: 'pluto', x: 700, y: 340, name: 'Pluto', color: '#000000' },
+      { id: 'mercury', x: 100, y: 250, name: '水星 (Suisei)', color: '#000000' },
+      { id: 'venus', x: 160, y: 220, name: '金星 (Kinsei)', color: '#000000' },
+      { id: 'earth', x: 230, y: 200, name: '地球中央 (Chikyū Chūō)', color: '#000000' },
+      { id: 'mars', x: 310, y: 190, name: '火星 (Kasei)', color: '#000000' },
+      { id: 'jupiter', x: 400, y: 200, name: '木星 (Mokusei)', color: '#000000' },
+      { id: 'saturn', x: 490, y: 220, name: '土星 (Dosei)', color: '#000000' },
+      { id: 'uranus', x: 570, y: 250, name: '天王星 (Ten\'ōsei)', color: '#000000' },
+      { id: 'neptune', x: 640, y: 290, name: '海王星 (Kaiōsei)', color: '#000000' },
+      { id: 'pluto', x: 700, y: 340, name: '冥王星 (Meiōsei)', color: '#000000' },
     ],
     lines: [
       {
@@ -242,8 +247,9 @@ export const trainPresets = [
   },
   {
     id: 'taiyokei-en',
-    name: 'Taiyokei Line (English)',
+    name: 'Solar Express',
     description: 'Solar System train line from Mercury to Pluto in English',
+    fullDescription: 'Solar system route with English announcements. Stations from Mercury to Pluto.',
     stations: [
       { id: 'mercury-en', x: 100, y: 250, name: 'Mercury', color: '#4a5568' },
       { id: 'venus-en', x: 160, y: 220, name: 'Venus', color: '#4a5568' },
@@ -258,7 +264,7 @@ export const trainPresets = [
     lines: [
       {
         id: 'taiyokei-line-en',
-        name: 'Taiyokei Line (EN)',
+        name: 'Solar Express',
         color: '#4a5568',
         tension: 0.4,
         stations: ['mercury-en', 'venus-en', 'earth-en', 'mars-en', 'jupiter-en', 'saturn-en', 'uranus-en', 'neptune-en', 'pluto-en']
@@ -269,7 +275,7 @@ export const trainPresets = [
         type: 'preset',
         filename: 'Taioykei Mercury EN.mp3',
         name: 'Mercury Arrival',
-        transcription: 'Thank you for using the Taiyōkei Line. This train is bound for Pluto. We will stop at Venus, Earth, Mars, Jupiter, Saturn, Uranus, Neptune, and Pluto. The next station is Venus.'
+        transcription: 'Thank you for using the Solar Express. This train is bound for Pluto. We will stop at Venus, Earth, Mars, Jupiter, Saturn, Uranus, Neptune, and Pluto. The next station is Venus.'
       },
       'between-mercury-en-venus-en': {
         type: 'preset',

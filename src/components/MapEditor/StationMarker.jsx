@@ -81,7 +81,7 @@ const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false,
     <g 
       onClick={onClick} 
       onMouseDown={onMouseDown}
-      className={isDragging ? "cursor-grabbing" : "cursor-grab"}
+      className={isDragging ? "cursor-grabbing" : "cursor-pointer"}
     >
       {isHighlighted && (
         <circle

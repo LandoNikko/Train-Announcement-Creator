@@ -46,6 +46,7 @@ function App() {
   const [isStationPlaying, setIsStationPlaying] = useState(false)
   const [showTranscription, setShowTranscription] = useState(false)
   const [currentTranscription, setCurrentTranscription] = useState('')
+  const [selectedLineId, setSelectedLineId] = useState(null)
 
   useEffect(() => {
     const defaultPreset = trainPresets.find(p => p.id === 'simple')
@@ -278,6 +279,16 @@ function App() {
     }
   }, [stations, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, saveToHistory])
 
+  // Combined update for stations and lines (for atomic operations like merging)
+  const updateStationsAndLines = useCallback((newStations, newLines) => {
+    const resolvedStations = typeof newStations === 'function' ? newStations(stations) : newStations
+    const resolvedLines = typeof newLines === 'function' ? newLines(lines) : newLines
+    
+    saveToHistory(resolvedStations, resolvedLines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
+    setStations(resolvedStations)
+    setLines(resolvedLines)
+  }, [stations, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory])
+
   const handleUndo = () => {
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1
@@ -380,7 +391,9 @@ function App() {
             setStationsNoHistory={setStations}
             lines={lines}
             setLines={updateLines}
+            setStationsAndLines={updateStationsAndLines}
             currentTool={currentTool}
+            setCurrentTool={setCurrentTool}
             selectedStations={selectedStations}
             setSelectedStations={setSelectedStations}
             gridZoom={gridZoom}
@@ -394,6 +407,7 @@ function App() {
             showTranscription={showTranscription}
             setShowTranscription={setShowTranscription}
             currentTranscription={currentTranscription}
+            selectedLineId={selectedLineId}
           />
           
           {isMobile && (
@@ -451,6 +465,8 @@ function App() {
               showTranscription={showTranscription}
               setShowTranscription={setShowTranscription}
               setCurrentTranscription={setCurrentTranscription}
+              selectedLineId={selectedLineId}
+              setSelectedLineId={setSelectedLineId}
             />
           </div>
         )}

@@ -1,9 +1,21 @@
 import { line, curveCatmullRom, curveLinear, curveCardinal } from 'd3-shape'
 
-const TrainLine = ({ line: trainLine, stations, lineStyle = 'smooth', onClick, isEditing = false }) => {
-  const lineStations = trainLine.stations
-    .map(id => stations.find(s => s.id === id))
-    .filter(Boolean)
+const TrainLine = ({ 
+  line: trainLine, 
+  stations, 
+  lineStyle = 'smooth', 
+  onClick, 
+  isEditing = false,
+  isGhost = false,
+  ghostPoints = null,
+  color = null
+}) => {
+  // Use ghostPoints, pathPoints (for path-only lines), or station-based points
+  const lineStations = ghostPoints || 
+    trainLine.pathPoints || 
+    trainLine.stations
+      .map(id => stations.find(s => s.id === id))
+      .filter(Boolean)
 
   if (lineStations.length < 2) return null
 
@@ -104,29 +116,33 @@ const TrainLine = ({ line: trainLine, stations, lineStyle = 'smooth', onClick, i
   }
 
   const pathData = generatePath()
+  const lineColor = color || trainLine?.color || '#ef4444'
 
   return (
     <g onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default' }}>
-      {/* Invisible wider path for easier clicking */}
-      <path
-        d={pathData}
-        fill="none"
-        stroke="transparent"
-        strokeWidth="20"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ pointerEvents: onClick ? 'stroke' : 'none' }}
-      />
+      {/* Invisible wider path for easier clicking (not for ghost lines) */}
+      {!isGhost && (
+        <path
+          d={pathData}
+          fill="none"
+          stroke="transparent"
+          strokeWidth="20"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ pointerEvents: onClick ? 'stroke' : 'none' }}
+        />
+      )}
       {/* Visible line */}
       <path
         d={pathData}
         fill="none"
-        stroke={trainLine.color}
-        strokeWidth={isEditing ? "6" : "4"}
+        stroke={lineColor}
+        strokeWidth={isGhost ? "3" : (isEditing ? "6" : "4")}
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity={isEditing ? "1" : "0.8"}
-        style={{ pointerEvents: 'none' }}
+        strokeDasharray={isGhost ? "5,5" : "none"}
+        opacity={isGhost ? "0.5" : (isEditing ? "1" : "0.8")}
+        style={{ pointerEvents: isGhost ? 'none' : 'none' }}
       />
     </g>
   )
