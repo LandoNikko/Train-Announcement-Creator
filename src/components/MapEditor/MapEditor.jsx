@@ -54,6 +54,7 @@ const MapEditor = forwardRef(({
   const [loopModalData, setLoopModalData] = useState(null)
   const [stationBeforeDrag, setStationBeforeDrag] = useState(null)
   const [showCanvasStyle, setShowCanvasStyle] = useState(false)
+  const [lastTouchDistance, setLastTouchDistance] = useState(null)
   const svgRef = useRef(null)
   const containerRef = useRef(null)
   const animationFrameRef = useRef(null)
@@ -420,6 +421,20 @@ const MapEditor = forwardRef(({
   }
 
   const handleTouchStart = (e) => {
+    // Handle two-finger pinch for zooming
+    if (e.touches.length === 2) {
+      e.preventDefault()
+      const touch1 = e.touches[0]
+      const touch2 = e.touches[1]
+      const distance = Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+      )
+      setLastTouchDistance(distance)
+      setIsPanning(false)
+      return
+    }
+    
     // Only handle single-finger touch for panning
     if (e.touches.length === 1) {
       const touch = e.touches[0]
@@ -439,6 +454,27 @@ const MapEditor = forwardRef(({
   }
 
   const handleTouchMove = (e) => {
+    // Handle two-finger pinch for zooming
+    if (e.touches.length === 2 && lastTouchDistance !== null) {
+      e.preventDefault()
+      const touch1 = e.touches[0]
+      const touch2 = e.touches[1]
+      const distance = Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+      )
+      
+      const delta = (distance - lastTouchDistance) * 0.005
+      const newZoom = Math.max(0.5, Math.min(2, gridZoom + delta))
+      
+      if (onGridZoomChange) {
+        onGridZoomChange(newZoom)
+      }
+      
+      setLastTouchDistance(distance)
+      return
+    }
+    
     if (e.touches.length === 1) {
       const touch = e.touches[0]
       const svgPoint = getSVGPoint(touch.clientX, touch.clientY)
@@ -483,7 +519,22 @@ const MapEditor = forwardRef(({
   }
 
   const handleTouchEnd = () => {
+    setLastTouchDistance(null)
     handleMouseUp()
+  }
+
+  const handleWheel = (e) => {
+    // Only zoom when shift key is pressed
+    if (e.shiftKey) {
+      e.preventDefault()
+      
+      const delta = -e.deltaY * 0.001 // Normalize scroll delta
+      const newZoom = Math.max(0.5, Math.min(2, gridZoom + delta))
+      
+      if (onGridZoomChange) {
+        onGridZoomChange(newZoom)
+      }
+    }
   }
 
   const handleMouseMove = (e) => {
@@ -825,6 +876,7 @@ const MapEditor = forwardRef(({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onWheel={handleWheel}
       >
         <GridCanvas spacing={gridSpacing} viewBox={viewBox} zoom={gridZoom} currentTool={currentTool} hoverPoint={hoverGridPoint} gridStyle={gridStyle} />
         
