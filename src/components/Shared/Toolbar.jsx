@@ -101,54 +101,6 @@ const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMod
           <Hash size={18} />
         </button>
 
-        <div 
-          className="flex gap-0 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden"
-          style={{ backgroundColor: 'var(--toolbar-group-bg)' }}
-        >
-          <button
-            onClick={() => onLineStyleChange('direct')}
-            className={`flex items-center justify-center px-2 py-1 transition-colors ${
-              lineStyle === 'direct' ? 'btn-selected' : 'btn-unselected'
-            }`}
-            title={t('lineStyleDirect')}
-          >
-            <span className="text-lg font-medium">─</span>
-          </button>
-          <button
-            onClick={() => onLineStyleChange('minimal')}
-            className={`flex items-center justify-center px-2 py-1 transition-colors ${
-              lineStyle === 'minimal' ? 'btn-selected' : 'btn-unselected'
-            }`}
-            title={t('lineStyleMinimal')}
-          >
-            <i className="ri-loader-5-fill text-lg"></i>
-          </button>
-          <button
-            onClick={() => onLineStyleChange('smooth')}
-            className={`flex items-center justify-center px-2 py-1 transition-colors ${
-              lineStyle === 'smooth' ? 'btn-selected' : 'btn-unselected'
-            }`}
-            title={t('lineStyleSmooth')}
-          >
-            <span className="text-xl">∿</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-          <ZoomOut size={16} className="text-gray-600 dark:text-gray-400" />
-          <input
-            type="range"
-            min="0.5"
-            max="2"
-            step="0.1"
-            value={gridZoom}
-            onChange={(e) => onGridZoomChange(parseFloat(e.target.value))}
-            className="w-24 h-1 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:hover:bg-blue-600 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:hover:bg-blue-600"
-            title={`${t('zoom')}: ${Math.round(gridZoom * 100)}%`}
-          />
-          <ZoomIn size={16} className="text-gray-600 dark:text-gray-400" />
-        </div>
-
         <div className="flex items-center gap-1">
           <button
             onClick={onUndo}

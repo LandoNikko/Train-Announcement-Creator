@@ -36,6 +36,9 @@ function App() {
   const [lineStyle, setLineStyle] = useState(() => {
     return localStorage.getItem('lineStyle') || 'smooth'
   })
+  const [gridStyle, setGridStyle] = useState(() => {
+    return localStorage.getItem('gridStyle') || 'dots'
+  })
   const [history, setHistory] = useState([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const historyIndexRef = useRef(-1)
@@ -77,6 +80,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('lineStyle', lineStyle)
   }, [lineStyle])
+
+  useEffect(() => {
+    localStorage.setItem('gridStyle', gridStyle)
+  }, [gridStyle])
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
@@ -397,8 +404,12 @@ function App() {
             selectedStations={selectedStations}
             setSelectedStations={setSelectedStations}
             gridZoom={gridZoom}
+            onGridZoomChange={setGridZoom}
             language={language}
             lineStyle={lineStyle}
+            onLineStyleChange={setLineStyle}
+            gridStyle={gridStyle}
+            onGridStyleChange={setGridStyle}
             showStationNumbers={showStationNumbers}
             isMobile={isMobile}
             selectedStationId={selectedStationId}

@@ -4,7 +4,6 @@ export const translations = {
     appTitle: 'Train Line',
     selectTool: 'Select',
     addStationTool: 'Add Station',
-    drawLineTool: 'Draw Line',
     createTrainLineTool: 'Create Train Line',
     drawPathTool: 'Draw Path',
     resetToDefault: 'Reset to Default',
@@ -17,6 +16,14 @@ export const translations = {
     lineStyleDirect: 'Direct Path',
     lineStyleMinimal: 'Path with Corners',
     lineStyleSmooth: 'Smooth Path',
+    gridStyle: 'Grid Style',
+    gridStyleNone: 'None',
+    gridStyleDots: 'Dots',
+    gridStyleHorizontal: 'Horizontal Lines',
+    gridStyleVertical: 'Vertical Lines',
+    gridStyleGrid: 'Grid Lines',
+    gridStyleDiagonal: 'Diagonal Lines',
+    canvasStyle: 'Canvas Style',
     undo: 'Undo',
     redo: 'Redo',
     showStationNumbers: 'Show Numbers',
@@ -24,8 +31,6 @@ export const translations = {
     
     // Map Editor
     clickGridToAddStation: 'Click on grid to add station',
-    clickStationsToConnect: 'Click stations to connect them',
-    clickAnotherStation: 'Click another station to complete line',
     clickToAddStations: 'Click grid points to add stations. Right-click to finish.',
     clickToDrawPath: 'Click grid points to draw path. Right-click to finish.',
     tapToAddStations: 'Tap grid points to add stations. Tap "Finish" when done.',
@@ -38,22 +43,13 @@ export const translations = {
     showAnnouncements: 'Announcements',
     hideMenu: 'Hide',
     
-    // Station Editor
-    editStation: 'Edit Station',
-    stationName: 'Name',
-    stationColor: 'Color',
-    save: 'Save',
-    delete: 'Delete',
-    
-    // Line Editor
-    editLine: 'Edit Line',
-    lineName: 'Line Name',
-    lineColor: 'Line Color',
-    
     // Unified Editor
+    editStation: 'Edit Station',
+    editLine: 'Edit Line',
     editor: 'Editor',
     name: 'Name',
     color: 'Color',
+    delete: 'Delete',
     
     // Preset Sidebar
     trainLinePresets: 'Train Line Presets',
@@ -61,26 +57,31 @@ export const translations = {
     stations: 'stations',
     active: 'Active',
     
-    // Preset Names
-    'Yamanote Line': 'Yamanote Line',
-    'Tokyo\'s iconic circular line': 'Tokyo\'s iconic circular line',
-    'Chuo Line': 'Chuo Line',
-    'Rapid service through central Tokyo': 'Rapid service through central Tokyo',
-    'Ginza Line': 'Ginza Line',
-    'Tokyo\'s oldest subway line': 'Tokyo\'s oldest subway line',
-    'Taiyokei Line': 'Taiyōkei Line',
-    'Solar System train line from Mercury to Pluto in Japanese': 'Solar System',
-    'Solar Express': 'Solar Express',
-    'Solar System train line from Mercury to Pluto in English': 'Solar System',
-    'Japan': 'Japan',
+    // Preset Names and Descriptions
     'Simple Demo': 'Simple Demo',
+    'Yamanote Line': 'Yamanote Line',
+    'Chuo Line': 'Chuo Line',
+    'Ginza Line': 'Ginza Line',
+    'Taiyokei Line': 'Taiyōkei Line',
+    'Solar Express': 'Solar Express',
+    
+    // Preset Categories
+    'Japan': 'Japan',
+    'Solar System': 'Solar System',
+    'Misc': 'Misc',
+    
+    // Preset Descriptions
     'A simple 4-station demo route': 'Misc',
-    'A basic demonstration route featuring four stations arranged in a simple loop. Perfect for testing and learning the basics of the train announcement system.': 'Four stations in a simple loop. Good for testing the announcement system.',
-    'Tokyo\'s iconic circular line connecting major stations around central Tokyo. This 21-station loop line is one of the busiest urban rail lines in the world.': 'Tokyo\'s circular line with 21 stations. Connects major areas around central Tokyo.',
-    'A major rapid transit line running east-west through central Tokyo. Known for its distinctive orange trains and efficient service connecting Tokyo Station to western suburbs.': 'East-west line through central Tokyo. Orange trains connect Tokyo Station to western suburbs.',
-    'Tokyo\'s oldest subway line, opened in 1927. This historic line connects Shibuya to Asakusa, passing through major commercial districts including Ginza and Ueno.': 'Tokyo\'s oldest subway line from 1927. Runs from Shibuya to Asakusa through Ginza and Ueno.',
-    'An imaginative journey through our solar system with Japanese announcements. Travel from Mercury to Pluto, visiting all planets along the way with authentic Japanese station announcements.': 'Solar system route with Japanese announcements. Stations from Mercury to Pluto.',
-    'Experience an interplanetary rail journey with English announcements. This futuristic line takes passengers on a tour of the solar system from Mercury to distant Pluto.': 'Solar system route with English announcements. Stations from Mercury to Pluto.',
+    'Solar System train line from Mercury to Pluto in Japanese': 'Solar System',
+    'Solar System train line from Mercury to Pluto in English': 'Solar System',
+    
+    // Preset Full Descriptions
+    'Four stations in a simple loop. Good for testing the announcement system.': 'Four stations in a simple loop. Good for testing the announcement system.',
+    'Tokyo\'s circular line with 21 stations. Connects major areas around central Tokyo.': 'Tokyo\'s circular line with 21 stations. Connects major areas around central Tokyo.',
+    'East-west line through central Tokyo. Orange trains connect Tokyo Station to western suburbs.': 'East-west line through central Tokyo. Orange trains connect Tokyo Station to western suburbs.',
+    'Tokyo\'s oldest subway line from 1927. Runs from Shibuya to Asakusa through Ginza and Ueno.': 'Tokyo\'s oldest subway line from 1927. Runs from Shibuya to Asakusa through Ginza and Ueno.',
+    'Solar system route with Japanese announcements. Stations from Mercury to Pluto.': 'Solar system route with Japanese announcements. Stations from Mercury to Pluto.',
+    'Solar system route with English announcements. Stations from Mercury to Pluto.': 'Solar system route with English announcements. Stations from Mercury to Pluto.',
     
     // Announcement Panel
     announcements: 'Announcements',
@@ -138,6 +139,26 @@ export const translations = {
     // Station defaults
     station: 'Station',
     
+    // Name Presets
+    stationNamePresets: [
+      // Cities
+      'Tokyo', 'Osaka', 'Kyoto', 'Nagoya', 'Kobe', 'Fukuoka', 'Sapporo', 'Yokohama', 'Sendai', 'Hiroshima', 'Kanazawa', 'Nagano', 'Shinjuku', 'Shibuya', 'Ikebukuro', 'Shinagawa', 'Ueno', 'Akihabara', 'London', 'Paris', 'Berlin', 'Madrid', 'Rome', 'Amsterdam', 'New York', 'Los Angeles', 'Chicago', 'Boston', 'Seattle', 'San Francisco', 'Seoul', 'Beijing', 'Shanghai', 'Hong Kong', 'Taipei', 'Bangkok', 'Singapore', 'Sydney', 'Melbourne', 'Toronto', 'Vancouver', 'Mexico City', 'São Paulo', 'Buenos Aires', 'Moscow', 'Istanbul', 'Dubai', 'Mumbai', 'Delhi',
+      // Directions
+      'Central', 'North', 'South', 'East', 'West', 'Northeast', 'Northwest', 'Southeast', 'Southwest',
+      // Locations
+      'Station Front', 'City Hall', 'University', 'Hospital', 'Airport', 'Harbor', 'Park', 'Stadium', 'Convention Center', 'Museum',
+      // Descriptive
+      'Platform A', 'Platform B', 'Platform C', 'Junction', 'Terminal', 'Express Stop', 'Local Stop', 'Transfer', 'Interchange', 'Depot', 'Yard'
+    ],
+    lineNamePresets: [
+      // Line Types
+      'Express Line', 'Local Line', 'Rapid Line', 'Limited Express', 'Main Line', 'Branch Line', 'Loop Line', 'Circle Line', 'Metro Line', 'Subway Line', 'Commuter Line', 'Regional Line',
+      // Colors
+      'Red Line', 'Blue Line', 'Green Line', 'Yellow Line', 'Orange Line', 'Purple Line', 'Pink Line', 'Brown Line', 'Silver Line', 'Gold Line',
+      // Geographic
+      'North Line', 'South Line', 'East Line', 'West Line', 'Downtown Line', 'Uptown Line', 'Crosstown Line', 'Harbor Line', 'Mountain Line', 'Coastal Line', 'River Line', 'Valley Line'
+    ],
+    
     // Loop Modal
     createLoopLine: 'Create Loop Line',
     selectLoopStation: 'Select which station to use',
@@ -164,7 +185,6 @@ export const translations = {
     appTitle: '路線図',
     selectTool: '選択',
     addStationTool: '駅を追加',
-    drawLineTool: '路線を描く',
     createTrainLineTool: '路線を作成',
     drawPathTool: 'パスを描く',
     resetToDefault: 'デフォルトにリセット',
@@ -177,6 +197,14 @@ export const translations = {
     lineStyleDirect: '直線パス',
     lineStyleMinimal: 'コーナー付きパス',
     lineStyleSmooth: 'スムーズパス',
+    gridStyle: 'グリッドスタイル',
+    gridStyleNone: 'なし',
+    gridStyleDots: 'ドット',
+    gridStyleHorizontal: '横線',
+    gridStyleVertical: '縦線',
+    gridStyleGrid: 'グリッド線',
+    gridStyleDiagonal: '対角線',
+    canvasStyle: 'キャンバススタイル',
     undo: '元に戻す',
     redo: 'やり直す',
     showStationNumbers: '番号を表示',
@@ -184,8 +212,6 @@ export const translations = {
     
     // Map Editor
     clickGridToAddStation: 'グリッドをクリックして駅を追加',
-    clickStationsToConnect: '駅をクリックして接続',
-    clickAnotherStation: '別の駅をクリックして路線を完成',
     clickToAddStations: 'グリッドポイントをクリックして駅を追加。右クリックで完了。',
     clickToDrawPath: 'グリッドポイントをクリックしてパスを描く。右クリックで完了。',
     tapToAddStations: 'グリッドポイントをタップして駅を追加。完了したら「完了」をタップ。',
@@ -198,22 +224,13 @@ export const translations = {
     showAnnouncements: 'アナウンス',
     hideMenu: '非表示',
     
-    // Station Editor
-    editStation: '駅を編集',
-    stationName: '駅名',
-    stationColor: '色',
-    save: '保存',
-    delete: '削除',
-    
-    // Line Editor
-    editLine: '路線を編集',
-    lineName: '路線名',
-    lineColor: '路線の色',
-    
     // Unified Editor
+    editStation: '駅を編集',
+    editLine: '路線を編集',
     editor: 'エディター',
     name: '名前',
     color: '色',
+    delete: '削除',
     
     // Preset Sidebar
     trainLinePresets: '路線プリセット',
@@ -221,26 +238,31 @@ export const translations = {
     stations: '駅',
     active: 'アクティブ',
     
-    // Preset Names
-    'Yamanote Line': '山手線',
-    'Tokyo\'s iconic circular line': '東京の象徴的な環状線',
-    'Chuo Line': '中央線',
-    'Rapid service through central Tokyo': '東京中心部を走る快速列車',
-    'Ginza Line': '銀座線',
-    'Tokyo\'s oldest subway line': '東京最古の地下鉄路線',
-    'Taiyokei Line': '太陽系線',
-    'Solar System train line from Mercury to Pluto in Japanese': '太陽系',
-    'Solar Express': 'ソーラーエクスプレス',
-    'Solar System train line from Mercury to Pluto in English': '太陽系',
-    'Japan': '日本',
+    // Preset Names and Descriptions
     'Simple Demo': 'シンプルデモ',
+    'Yamanote Line': '山手線',
+    'Chuo Line': '中央線',
+    'Ginza Line': '銀座線',
+    'Taiyokei Line': '太陽系線',
+    'Solar Express': 'ソーラーエクスプレス',
+    
+    // Preset Categories
+    'Japan': '日本',
+    'Solar System': '太陽系',
+    'Misc': 'その他',
+    
+    // Preset Descriptions
     'A simple 4-station demo route': 'その他',
-    'A basic demonstration route featuring four stations arranged in a simple loop. Perfect for testing and learning the basics of the train announcement system.': 'シンプルなループ状の4駅。アナウンスシステムのテスト用。',
-    'Tokyo\'s iconic circular line connecting major stations around central Tokyo. This 21-station loop line is one of the busiest urban rail lines in the world.': '東京の環状線。21駅で中心部の主要エリアを結ぶ。',
-    'A major rapid transit line running east-west through central Tokyo. Known for its distinctive orange trains and efficient service connecting Tokyo Station to western suburbs.': '東京中心部を東西に走る路線。オレンジ色の車両で東京駅から西部郊外へ。',
-    'Tokyo\'s oldest subway line, opened in 1927. This historic line connects Shibuya to Asakusa, passing through major commercial districts including Ginza and Ueno.': '1927年開業の東京最古の地下鉄。渋谷から浅草まで銀座・上野経由。',
-    'An imaginative journey through our solar system with Japanese announcements. Travel from Mercury to Pluto, visiting all planets along the way with authentic Japanese station announcements.': '太陽系ルート（日本語アナウンス）。水星から冥王星まで。',
-    'Experience an interplanetary rail journey with English announcements. This futuristic line takes passengers on a tour of the solar system from Mercury to distant Pluto.': '太陽系ルート（英語アナウンス）。水星から冥王星まで。',
+    'Solar System train line from Mercury to Pluto in Japanese': '太陽系',
+    'Solar System train line from Mercury to Pluto in English': '太陽系',
+    
+    // Preset Full Descriptions
+    'Four stations in a simple loop. Good for testing the announcement system.': 'シンプルなループ状の4駅。アナウンスシステムのテスト用。',
+    'Tokyo\'s circular line with 21 stations. Connects major areas around central Tokyo.': '東京の環状線。21駅で中心部の主要エリアを結ぶ。',
+    'East-west line through central Tokyo. Orange trains connect Tokyo Station to western suburbs.': '東京中心部を東西に走る路線。オレンジ色の車両で東京駅から西部郊外へ。',
+    'Tokyo\'s oldest subway line from 1927. Runs from Shibuya to Asakusa through Ginza and Ueno.': '1927年開業の東京最古の地下鉄。渋谷から浅草まで銀座・上野経由。',
+    'Solar system route with Japanese announcements. Stations from Mercury to Pluto.': '太陽系ルート（日本語アナウンス）。水星から冥王星まで。',
+    'Solar system route with English announcements. Stations from Mercury to Pluto.': '太陽系ルート（英語アナウンス）。水星から冥王星まで。',
     
     // Announcement Panel
     announcements: 'アナウンス',
@@ -297,6 +319,26 @@ export const translations = {
     
     // Station defaults
     station: '駅',
+    
+    // Name Presets
+    stationNamePresets: [
+      // 都市
+      '東京', '大阪', '京都', '名古屋', '神戸', '福岡', '札幌', '横浜', '仙台', '広島', '金沢', '長野', '新宿', '渋谷', '池袋', '品川', '上野', '秋葉原', 'ロンドン', 'パリ', 'ベルリン', 'マドリード', 'ローマ', 'アムステルダム', 'ニューヨーク', 'ロサンゼルス', 'シカゴ', 'ボストン', 'シアトル', 'サンフランシスコ', 'ソウル', '北京', '上海', '香港', '台北', 'バンコク', 'シンガポール', 'シドニー', 'メルボルン', 'トロント', 'バンクーバー', 'メキシコシティ', 'サンパウロ', 'ブエノスアイレス', 'モスクワ', 'イスタンブール', 'ドバイ', 'ムンバイ', 'デリー',
+      // 方角
+      '中央', '北', '南', '東', '西', '北東', '北西', '南東', '南西',
+      // 場所
+      '駅前', '本町', '市役所', '大学', '病院', '空港', '港', '公園', 'スタジアム', '国際展示場', '博物館',
+      // 説明的
+      '一番線', '二番線', '三番線', 'ジャンクション', 'ターミナル', '急行停車駅', '各駅停車', '乗換', 'インターチェンジ', '車庫', '操車場'
+    ],
+    lineNamePresets: [
+      // 路線種別
+      '急行線', '各駅停車線', '快速線', '特急線', '本線', '支線', '環状線', 'ループ線', '地下鉄線', 'メトロ線', '通勤線', '地方線',
+      // 色
+      '赤線', '青線', '緑線', '黄線', 'オレンジ線', '紫線', 'ピンク線', '茶線', '銀線', '金線',
+      // 地理
+      '北線', '南線', '東線', '西線', '都心線', '郊外線', '横断線', '港線', '山岳線', '海岸線', '川沿い線', '渓谷線'
+    ],
     
     // Loop Modal
     createLoopLine: 'ループ路線を作成',

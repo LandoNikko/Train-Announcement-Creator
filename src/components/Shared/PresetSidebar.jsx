@@ -37,28 +37,28 @@ const PresetSidebar = ({ onLoadPreset, currentPresetId, language = 'en', isMobil
               currentPresetId === preset.id ? 'btn-selected' : 'btn-unselected'
             }`}
           >
-            <div className="flex items-start gap-2">
-              <div className="flex-1 min-w-0">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-start justify-between gap-2">
                 <h3 className="font-semibold text-gray-800 dark:text-gray-200 text-sm">
                   {t(preset.name)}
                 </h3>
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-gray-600 dark:text-gray-300 flex-shrink-0">
-                    {t(preset.description)}
-                  </p>
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
-                    <Circle size={12} />
-                    <span>{preset.stations.length} {t('stations')}</span>
+                {currentPresetId === preset.id ? (
+                  <div className="px-2 py-1 bg-blue-500 text-white text-xs rounded flex-shrink-0">
+                    {t('active')}
                   </div>
+                ) : (
+                  <ArrowRight size={16} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                )}
+              </div>
+              <div className="flex items-center justify-between mt-0.5">
+                <p className="text-xs text-gray-600 dark:text-gray-300">
+                  {t(preset.description)}
+                </p>
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
+                  <Circle size={12} />
+                  <span>{preset.stations.length} {t('stations')}</span>
                 </div>
               </div>
-              {currentPresetId === preset.id ? (
-                <div className="px-2 py-1 bg-blue-500 text-white text-xs rounded flex-shrink-0 self-start">
-                  {t('active')}
-                </div>
-              ) : (
-                <ArrowRight size={16} className="text-gray-400 dark:text-gray-500 flex-shrink-0 self-start" />
-              )}
             </div>
           </button>
         ))}

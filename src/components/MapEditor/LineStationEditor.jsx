@@ -1,5 +1,7 @@
-import { Trash2, Palette } from 'lucide-react'
+import { Trash2, Shuffle } from 'lucide-react'
 import { useTranslation } from '../../hooks/useTranslation'
+import { useState } from 'react'
+import { translations } from '../../locales/translations'
 
 const LineStationEditor = ({ 
   station,
@@ -11,14 +13,14 @@ const LineStationEditor = ({
   onDeleteStation,
   onDeleteLine,
   onClose,
-  language = 'en'
+  language = 'en',
+  setStationsAndLines
 }) => {
   const { t } = useTranslation(language)
-
-  const predefinedColors = [
-    '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', 
-    '#06b6d4', '#f97316', '#84cc16', '#a855f7', '#14b8a6', '#f43f5e'
-  ]
+  const [isShufflingStationColor, setIsShufflingStationColor] = useState(false)
+  const [isShufflingLineColor, setIsShufflingLineColor] = useState(false)
+  const [isShufflingStationName, setIsShufflingStationName] = useState(false)
+  const [isShufflingLineName, setIsShufflingLineName] = useState(false)
 
   // Find the line that this station belongs to (if station is selected)
   // Use the most up-to-date line from lines array
@@ -49,10 +51,22 @@ const LineStationEditor = ({
   }
 
   const handleLineColorChange = (newColor) => {
-    if (activeLine && onUpdateLine) {
+    if (activeLine) {
       const updatedLine = { ...activeLine, color: newColor }
-      // Pass true to indicate station colors should also be updated
-      onUpdateLine(updatedLine, true)
+      const updatedLines = lines.map(l => l.id === updatedLine.id ? updatedLine : l)
+      
+      // Update all connected stations atomically for proper history tracking
+      if (updatedLine.stations && setStationsAndLines) {
+        const updatedStations = stations.map(s => 
+          updatedLine.stations.includes(s.id) 
+            ? { ...s, color: newColor }
+            : s
+        )
+        setStationsAndLines(updatedStations, updatedLines)
+      } else if (onUpdateLine) {
+        // Fallback to old method if setStationsAndLines not available
+        onUpdateLine(updatedLine, true)
+      }
     }
   }
 
@@ -64,86 +78,177 @@ const LineStationEditor = ({
     }
   }
 
-  const renderSection = (title, nameValue, colorValue, onNameChange, onColorChange, onDelete, deleteId) => (
-    <div className="p-3 rounded-lg border border-transparent" style={{ backgroundColor: 'var(--btn-unselected-bg)' }}>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-gray-800 dark:text-gray-200 text-sm flex items-center gap-2">
-          {title}
-          {onDelete && (
-            <button 
-              onClick={() => onDelete(deleteId)}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-              title={t('delete')}
-            >
-              <Trash2 size={14} />
-            </button>
-          )}
-        </h3>
-      </div>
+  // Generate random name
+  const randomizeName = (isStationName) => {
+    // Trigger animation for the specific input
+    if (isStationName) {
+      setIsShufflingStationName(true)
+      setTimeout(() => setIsShufflingStationName(false), 200)
+    } else {
+      setIsShufflingLineName(true)
+      setTimeout(() => setIsShufflingLineName(false), 200)
+    }
+    
+    // Get presets from translations
+    const presets = isStationName 
+      ? translations[language]?.stationNamePresets || translations.en.stationNamePresets
+      : translations[language]?.lineNamePresets || translations.en.lineNamePresets
+    
+    const randomName = presets[Math.floor(Math.random() * presets.length)]
+    
+    if (isStationName) {
+      if (station && onUpdateStation) {
+        const updatedStation = { ...station, name: randomName }
+        onUpdateStation(updatedStation)
+      }
+    } else {
+      if (activeLine && onUpdateLine) {
+        const updatedLine = { ...activeLine, name: randomName }
+        onUpdateLine(updatedLine)
+      }
+    }
+  }
 
-      <div className="space-y-3">
-        <div>
-          <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">
-            {t('name')}
-          </label>
-          <input
-            type="text"
-            value={nameValue}
-            onChange={onNameChange}
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+  // Generate random color
+  const randomizeColor = (isStationColor) => {
+    // Trigger animation for the specific button
+    if (isStationColor) {
+      setIsShufflingStationColor(true)
+      setTimeout(() => setIsShufflingStationColor(false), 200)
+    } else {
+      setIsShufflingLineColor(true)
+      setTimeout(() => setIsShufflingLineColor(false), 200)
+    }
+    
+    const h = Math.floor(Math.random() * 360)
+    const s = Math.floor(Math.random() * 60) + 20 // 20-80% saturation
+    const l = Math.floor(Math.random() * 60) + 20 // 20-80% lightness
+    
+    // Convert HSL to hex
+    const hslToHex = (h, s, l) => {
+      s /= 100
+      l /= 100
+      const a = s * Math.min(l, 1 - l)
+      const f = (n) => {
+        const k = (n + h / 30) % 12
+        const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)
+        return Math.round(255 * color).toString(16).padStart(2, '0')
+      }
+      return `#${f(0)}${f(8)}${f(4)}`
+    }
+    
+    const randomColor = hslToHex(h, s, l)
+    
+    if (isStationColor) {
+      handleStationColorChange(randomColor)
+    } else {
+      handleLineColorChange(randomColor)
+    }
+  }
+
+  const renderSection = (title, nameValue, colorValue, onNameChange, onColorChange, onDelete, deleteId) => {
+    const isStationColor = title === t('editStation')
+    
+    return (
+      <div className="p-3 rounded-lg border border-transparent" style={{ backgroundColor: 'var(--btn-unselected-bg)' }}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-gray-800 dark:text-gray-200 text-sm flex items-center gap-2">
+            {title}
+            {onDelete && (
+              <button 
+                onClick={() => onDelete(deleteId)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                title={t('delete')}
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+          </h3>
         </div>
 
-        <div>
-          <label className="text-xs text-gray-600 dark:text-gray-400 mb-2 block">
-            {t('color')}
-          </label>
-          <div className="grid grid-cols-6 gap-2 mb-3">
-            {predefinedColors.map(c => (
-              <button
-                key={c}
-                onClick={() => onColorChange(c)}
-                className={`w-9 h-9 rounded-lg transition-all hover:scale-110 ${
-                  colorValue === c ? 'ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-gray-800' : ''
-                }`}
-                style={{ backgroundColor: c }}
-                title={c}
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">
+              {t('name')}
+            </label>
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={nameValue}
+                onChange={onNameChange}
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            ))}
+              <button
+                onClick={() => randomizeName(isStationColor)}
+                className="flex-shrink-0 w-[34px] h-[34px] flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
+                title="Randomize name"
+              >
+                <Shuffle 
+                  size={16} 
+                  className={`text-gray-700 dark:text-gray-300 transition-transform ${
+                    (isStationColor && isShufflingStationName) || (!isStationColor && isShufflingLineName) 
+                      ? 'animate-shuffle' 
+                      : ''
+                  }`}
+                />
+              </button>
+            </div>
           </div>
-          
-          <div className="flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-            <Palette size={14} className="text-gray-500 dark:text-gray-400" />
-            <input
-              type="color"
-              value={colorValue}
-              onChange={(e) => handleCustomColorChange(e, title === t('editStation'))}
-              className="w-12 h-8 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
-            />
-            <input
-              type="text"
-              value={colorValue}
-              onChange={(e) => handleCustomColorChange(e, title === t('editStation'))}
-              placeholder="#000000"
-              className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+
+          <div>
+            <label className="text-xs text-gray-600 dark:text-gray-400 mb-2 block">
+              {t('color')}
+            </label>
+            
+            {/* Color picker with randomize button */}
+            <div className="flex gap-1.5">
+              <label 
+                className="relative flex-1 h-[34px] rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                style={{ backgroundColor: colorValue }}
+              >
+                <input
+                  type="color"
+                  value={colorValue}
+                  onChange={(e) => handleCustomColorChange(e, isStationColor)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+              </label>
+              
+              <button
+                onClick={() => randomizeColor(isStationColor)}
+                className="flex-shrink-0 w-[34px] h-[34px] flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
+                title="Randomize color"
+              >
+                <Shuffle 
+                  size={16} 
+                  className={`text-gray-700 dark:text-gray-300 transition-transform ${
+                    (isStationColor && isShufflingStationColor) || (!isStationColor && isShufflingLineColor) 
+                      ? 'animate-shuffle' 
+                      : ''
+                  }`}
+                />
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
+
+  // Get fresh station data from stations array to ensure color is up-to-date
+  const freshStation = station ? stations.find(s => s.id === station.id) || station : null
 
   return (
     <div className="absolute top-4 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 w-72 z-10 max-h-[calc(100vh-2rem)] overflow-y-auto">
       <div className="space-y-3" style={{ '--editor-section-bg': 'var(--btn-unselected-bg)' }}>
-        {station && renderSection(
+        {freshStation && renderSection(
           t('editStation'),
-          station.name,
-          station.color,
+          freshStation.name,
+          freshStation.color,
           handleStationNameChange,
           handleStationColorChange,
           onDeleteStation,
-          station.id
+          freshStation.id
         )}
 
         {activeLine && renderSection(
@@ -168,4 +273,3 @@ const LineStationEditor = ({
 }
 
 export default LineStationEditor
-

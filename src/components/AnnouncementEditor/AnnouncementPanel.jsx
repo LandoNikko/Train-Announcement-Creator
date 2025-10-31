@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { Play, Pause, Square, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Volume2, VolumeX, SkipBack, SkipForward, List, GitCommitVertical, Building2, TrainFront, ArrowDown, AlertTriangle, Plus, RotateCcw, Music, Radio, Bell, Clock, MapPin, Info, MessageSquare, Trash2, FileText } from 'lucide-react'
+import { Play, Pause, Square, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Volume2, VolumeX, SkipBack, SkipForward, List, GitCommitVertical, Building2, TrainFront, ArrowDown, AlertTriangle, Plus, RotateCcw, Music, Radio, Bell, Clock, MapPin, Info, MessageSquare, Trash2, FileText, Download, Image, FolderArchive } from 'lucide-react'
 import { useTranslation } from '../../hooks/useTranslation'
 import { getAllPresets } from '../../data/audioPresets'
+import JSZip from 'jszip'
 
 export const SoundWave = () => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
@@ -57,7 +58,12 @@ const AnnouncementPanel = ({
   // Available ElevenLabs voices with preview audio
   const availableVoices = useMemo(() => [
     { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', preview: '/src/assets/audio/presets/Rachel preview.mp3' },
-    { id: 'sRYzP8TwEiiqAWebdYPJ', name: 'Hatakekohei', preview: '/src/assets/audio/presets/Hatakekohei preview.mp3' }
+    { id: 'sRYzP8TwEiiqAWebdYPJ', name: 'Hatakekohei', preview: '/src/assets/audio/presets/Hatakekohei preview.mp3' },
+    { id: 'EkK5I93UQWFDigLMpZcX', name: 'James' },
+    { id: 'RILOU7YmBhvwJGDGjNmP', name: 'Jane' },
+    { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica' },
+    { id: 'FGY2WhTYpPnrIDTdsKH5', name: 'Laura' },
+    { id: 'x70vRnQBMBu4FAYhjJbO', name: 'Nathan' }
   ], [])
   
   const [voicePreviewPlaying, setVoicePreviewPlaying] = useState(null)
@@ -75,6 +81,7 @@ const AnnouncementPanel = ({
   const [audioRemainingTimes, setAudioRemainingTimes] = useState({})
   const [queueProgress, setQueueProgress] = useState(0) // Overall queue progress in seconds
   const [currentQueueIndex, setCurrentQueueIndex] = useState(0) // Current position in queue
+  const [isExporting, setIsExporting] = useState(false)
   const fileInputRefs = useRef({})
   const audioRef = useRef(null)
   const dropdownRefs = useRef({})
@@ -1635,6 +1642,131 @@ const AnnouncementPanel = ({
     )
   }
 
+  const handleExportAudioZip = async () => {
+    setIsExporting(true)
+    try {
+      const zip = new JSZip()
+      const queue = getOrderedQueue()
+      const lineName = lines.find(l => l.id === selectedLineId)?.name || 'Train Line'
+      
+      for (let i = 0; i < queue.length; i++) {
+        const slotId = queue[i]
+        const assignment = audioAssignments[slotId]
+        
+        if (assignment?.url) {
+          try {
+            const response = await fetch(assignment.url)
+            const blob = await response.blob()
+            const fileName = `${String(i + 1).padStart(3, '0')}_${assignment.transcription || slotId}.mp3`
+              .replace(/[^a-z0-9_\-\.]/gi, '_')
+            zip.file(fileName, blob)
+          } catch (error) {
+            console.error(`Failed to fetch audio for ${slotId}:`, error)
+          }
+        }
+      }
+      
+      const content = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(content)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${lineName.replace(/[^a-z0-9_\-]/gi, '_')}_audio.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export audio:', error)
+      alert('Failed to export audio files. Please try again.')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleExportCanvasSnapshot = () => {
+    const svgElement = document.querySelector('.relative.w-full.h-full svg')
+    if (!svgElement) {
+      alert('Canvas not found')
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      const svgClone = svgElement.cloneNode(true)
+      const viewBox = svgElement.getAttribute('viewBox')?.split(' ').map(Number) || [0, 0, 1200, 800]
+      
+      svgClone.setAttribute('width', viewBox[2].toString())
+      svgClone.setAttribute('height', viewBox[3].toString())
+      svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+      
+      // Find and replace the background rect to be white
+      const bgRect = svgClone.querySelector('rect.pointer-events-none')
+      if (bgRect) {
+        bgRect.style.fill = 'white'
+        bgRect.removeAttribute('class')
+      }
+      
+      // Fix all text elements to use black color
+      const textElements = svgClone.querySelectorAll('text')
+      textElements.forEach(text => {
+        text.style.fill = '#1f2937'
+        text.removeAttribute('class')
+      })
+      
+      // Fix all rect elements (station labels) to use light background
+      const rectElements = svgClone.querySelectorAll('rect:not(.grid-dot)')
+      rectElements.forEach(rect => {
+        if (!rect.classList.contains('pointer-events-none')) {
+          rect.style.fill = 'white'
+          rect.removeAttribute('class')
+        }
+      })
+      
+      const svgData = new XMLSerializer().serializeToString(svgClone)
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      const img = new window.Image()
+      
+      canvas.width = viewBox[2]
+      canvas.height = viewBox[3]
+      
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(svgBlob)
+      
+      img.onload = () => {
+        ctx.fillStyle = 'white'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.drawImage(img, 0, 0)
+        
+        canvas.toBlob((blob) => {
+          const downloadUrl = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          const lineName = lines.find(l => l.id === selectedLineId)?.name || 'Train Line'
+          a.href = downloadUrl
+          a.download = `${lineName.replace(/[^a-z0-9_\-]/gi, '_')}_map.png`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(downloadUrl)
+          URL.revokeObjectURL(url)
+          setIsExporting(false)
+        })
+      }
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(url)
+        alert('Failed to export canvas snapshot')
+        setIsExporting(false)
+      }
+      
+      img.src = url
+    } catch (error) {
+      console.error('Failed to export canvas:', error)
+      alert('Failed to export canvas snapshot. Please try again.')
+      setIsExporting(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-800">
       {/* Hidden audio element for voice previews */}
@@ -2027,6 +2159,36 @@ const AnnouncementPanel = ({
           </div>
         )}
       </div>
+
+      {/* Export Panel */}
+      {lineStations.length > 0 && (
+        <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex-shrink-0">
+          <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+            <span>Download</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportCanvasSnapshot}
+                disabled={isExporting}
+                className="flex items-center gap-1 px-2 py-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:text-gray-900 dark:hover:text-gray-200"
+                title="Download canvas as PNG image"
+              >
+                <Image size={12} />
+                <span>Canvas</span>
+              </button>
+              <div className="h-3 w-px bg-gray-300 dark:bg-gray-600" />
+              <button
+                onClick={handleExportAudioZip}
+                disabled={isExporting || getOrderedQueue().filter(id => audioAssignments[id]?.url).length === 0}
+                className="flex items-center gap-1 px-2 py-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:text-gray-900 dark:hover:text-gray-200"
+                title={`Download ${getOrderedQueue().filter(id => audioAssignments[id]?.url).length} audio files as zip`}
+              >
+                <FolderArchive size={12} />
+                <span>Audio</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

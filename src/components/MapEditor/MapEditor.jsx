@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react'
-import { ScanEye, CheckCircle, GitCommitVertical, FileText, Info } from 'lucide-react'
+import { ScanEye, CheckCircle, GitCommitVertical, FileText, Info, ZoomIn, ZoomOut, Dot, Minus, Plus, X, EyeOff, Fullscreen, ChevronUp, ChevronDown } from 'lucide-react'
 import GridCanvas from './GridCanvas'
 import StationMarker from './StationMarker'
 import TrainLine from './TrainLine'
@@ -13,15 +13,19 @@ const MapEditor = forwardRef(({
   setStations, 
   setStationsNoHistory,
   lines, 
-  setLines,
+  setLines, 
   setStationsAndLines,
   currentTool,
   setCurrentTool,
   selectedStations,
   setSelectedStations,
   gridZoom = 1,
+  onGridZoomChange,
   language = 'en',
   lineStyle = 'smooth',
+  onLineStyleChange,
+  gridStyle = 'dots',
+  onGridStyleChange,
   showStationNumbers = false,
   isMobile = false,
   selectedStationId = null,
@@ -49,6 +53,7 @@ const MapEditor = forwardRef(({
   const [showLoopModal, setShowLoopModal] = useState(false)
   const [loopModalData, setLoopModalData] = useState(null)
   const [stationBeforeDrag, setStationBeforeDrag] = useState(null)
+  const [showCanvasStyle, setShowCanvasStyle] = useState(false)
   const svgRef = useRef(null)
   const containerRef = useRef(null)
   const animationFrameRef = useRef(null)
@@ -68,7 +73,7 @@ const MapEditor = forwardRef(({
       return station
     })
     setStationsNoHistory(updatedStations)
-  }, [gridZoom])
+  }, [gridZoom, gridSpacing])
 
   useEffect(() => {
     const updateViewBoxSize = () => {
@@ -337,6 +342,22 @@ const MapEditor = forwardRef(({
     }
   }
 
+  const handleStationTouchStart = (station, e) => {
+    if (currentTool === 'select' && e.touches.length === 1) {
+      e.stopPropagation()
+      const touch = e.touches[0]
+      const svgPoint = getSVGPoint(touch.clientX, touch.clientY)
+      setDraggingStation(station)
+      setEditingStation(null)
+      setEditingLine(null)
+      setStationBeforeDrag({ ...station })
+      setDragOffset({
+        x: svgPoint.x - station.x,
+        y: svgPoint.y - station.y
+      })
+    }
+  }
+
   const handleStationUpdate = (updatedStation) => {
     const updatedStations = stations.map(s => s.id === updatedStation.id ? updatedStation : s)
     setStations(updatedStations)
@@ -396,6 +417,73 @@ const MapEditor = forwardRef(({
       setEditingLine(null)
       e.preventDefault()
     }
+  }
+
+  const handleTouchStart = (e) => {
+    // Only handle single-finger touch for panning
+    if (e.touches.length === 1) {
+      const touch = e.touches[0]
+      const target = e.target
+      
+      // Allow panning when touching the background (rect or svg), not stations or lines
+      const canPan = currentTool === 'select' && (target.tagName === 'rect' || target === svgRef.current)
+      
+      if (canPan) {
+        setIsPanning(true)
+        setPanStart({ x: touch.clientX, y: touch.clientY })
+        setEditingStation(null)
+        setEditingLine(null)
+        e.preventDefault()
+      }
+    }
+  }
+
+  const handleTouchMove = (e) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0]
+      const svgPoint = getSVGPoint(touch.clientX, touch.clientY)
+      setMousePosition(svgPoint)
+
+      if (currentTool === 'createLine' || currentTool === 'drawPath' || currentTool === 'station') {
+        const nearestX = Math.round(svgPoint.x / gridSpacing) * gridSpacing
+        const nearestY = Math.round(svgPoint.y / gridSpacing) * gridSpacing
+        setHoverGridPoint({ x: nearestX, y: nearestY })
+      } else {
+        setHoverGridPoint(null)
+      }
+
+      if (draggingStation) {
+        e.preventDefault() // Prevent scrolling while dragging
+        const newX = snapToGrid(svgPoint.x - dragOffset.x)
+        const newY = snapToGrid(svgPoint.y - dragOffset.y)
+        
+        setStationsNoHistory(prev => prev.map(s => 
+          s.id === draggingStation.id 
+            ? { 
+                ...s, 
+                x: newX, 
+                y: newY,
+                gridIndexX: Math.round(newX / gridSpacing),
+                gridIndexY: Math.round(newY / gridSpacing)
+              }
+            : s
+        ))
+      } else if (isPanning) {
+        e.preventDefault() // Prevent scrolling while panning
+        const dx = (touch.clientX - panStart.x) * 0.5
+        const dy = (touch.clientY - panStart.y) * 0.5
+        setViewBox(prev => ({
+          ...prev,
+          x: prev.x - dx,
+          y: prev.y - dy
+        }))
+        setPanStart({ x: touch.clientX, y: touch.clientY })
+      }
+    }
+  }
+
+  const handleTouchEnd = () => {
+    handleMouseUp()
   }
 
   const handleMouseMove = (e) => {
@@ -734,8 +822,11 @@ const MapEditor = forwardRef(({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onContextMenu={handleContextMenu}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
-        <GridCanvas spacing={gridSpacing} viewBox={viewBox} zoom={gridZoom} currentTool={currentTool} hoverPoint={hoverGridPoint} />
+        <GridCanvas spacing={gridSpacing} viewBox={viewBox} zoom={gridZoom} currentTool={currentTool} hoverPoint={hoverGridPoint} gridStyle={gridStyle} />
         
         {lines.map((line, lineIndex) => (
           <TrainLine
@@ -792,6 +883,7 @@ const MapEditor = forwardRef(({
                 }
               }}
               onMouseDown={(e) => handleStationMouseDown(station, e)}
+              onTouchStart={(e) => handleStationTouchStart(station, e)}
               allStations={allDisplayStations}
             />
           )
@@ -808,6 +900,7 @@ const MapEditor = forwardRef(({
             isDragging={false}
             onClick={() => {}}
             onMouseDown={() => {}}
+            onTouchStart={() => {}}
             allStations={allDisplayStations}
           />
         ))}
@@ -823,6 +916,7 @@ const MapEditor = forwardRef(({
           onUpdateLine={handleLineUpdate}
           onDeleteStation={handleStationDelete}
           onDeleteLine={handleLineDelete}
+          setStationsAndLines={setStationsAndLines}
           onClose={() => {
             setEditingStation(null)
             setEditingLine(null)
@@ -837,7 +931,7 @@ const MapEditor = forwardRef(({
             const isSelected = selectedLineId === line.id && lines.length > 1
             return (
               <button
-                key={line.id}
+              key={line.id}
                 onClick={() => {
                   if (editingLine?.id === line.id) {
                     setEditingLine(null)
@@ -851,15 +945,15 @@ const MapEditor = forwardRef(({
                     ? 'bg-white dark:bg-gray-800 border border-blue-500' 
                     : 'bg-white dark:bg-gray-800 border border-transparent'
                 }`}
-              >
-                <GitCommitVertical 
-                  size={16} 
-                  style={{ color: line.color }}
-                  className="flex-shrink-0"
-                />
-                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                  {line.name}
-                </span>
+            >
+              <GitCommitVertical 
+                size={16} 
+                style={{ color: line.color }}
+                className="flex-shrink-0"
+              />
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                {line.name}
+              </span>
               </button>
             )
           })}
@@ -896,15 +990,150 @@ const MapEditor = forwardRef(({
       )}
 
       {/* Action buttons at bottom left */}
-      <div className="absolute bottom-4 left-4 flex items-center gap-3">
+      <div className="absolute bottom-4 left-4 flex flex-col gap-3 items-start">
+        {/* Line Style Controls */}
+        {showCanvasStyle && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-1">{t('lineStyle')}</span>
+            <div 
+              className="flex gap-0 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-md"
+              style={{ backgroundColor: 'var(--toolbar-group-bg)' }}
+            >
+              <button
+                onClick={() => onLineStyleChange('direct')}
+                className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                  lineStyle === 'direct' ? 'btn-selected' : 'btn-unselected'
+                }`}
+                title={t('lineStyleDirect')}
+              >
+                <span className="text-lg font-medium">─</span>
+              </button>
+              <button
+                onClick={() => onLineStyleChange('minimal')}
+                className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                  lineStyle === 'minimal' ? 'btn-selected' : 'btn-unselected'
+                }`}
+                title={t('lineStyleMinimal')}
+              >
+                <i className="ri-loader-5-fill text-lg"></i>
+              </button>
+              <button
+                onClick={() => onLineStyleChange('smooth')}
+                className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                  lineStyle === 'smooth' ? 'btn-selected' : 'btn-unselected'
+                }`}
+                title={t('lineStyleSmooth')}
+              >
+                <span className="text-xl">∿</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Grid Style Controls */}
+        {showCanvasStyle && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-1">{t('gridStyle')}</span>
+            <div 
+              className="flex gap-0 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-md"
+              style={{ backgroundColor: 'var(--toolbar-group-bg)' }}
+            >
+              <button
+                onClick={() => onGridStyleChange('none')}
+                className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                  gridStyle === 'none' ? 'btn-selected' : 'btn-unselected'
+                }`}
+                title={t('gridStyleNone')}
+              >
+                <EyeOff size={18} />
+              </button>
+              <button
+                onClick={() => onGridStyleChange('dots')}
+                className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                  gridStyle === 'dots' ? 'btn-selected' : 'btn-unselected'
+                }`}
+                title={t('gridStyleDots')}
+              >
+                <Dot size={18} />
+              </button>
+              <button
+                onClick={() => onGridStyleChange('horizontal')}
+                className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                  gridStyle === 'horizontal' ? 'btn-selected' : 'btn-unselected'
+                }`}
+                title={t('gridStyleHorizontal')}
+              >
+                <Minus size={18} />
+              </button>
+              <button
+                onClick={() => onGridStyleChange('vertical')}
+                className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                  gridStyle === 'vertical' ? 'btn-selected' : 'btn-unselected'
+                }`}
+                title={t('gridStyleVertical')}
+              >
+                <Minus size={18} style={{ transform: 'rotate(90deg)' }} />
+              </button>
+              <button
+                onClick={() => onGridStyleChange('grid')}
+                className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                  gridStyle === 'grid' ? 'btn-selected' : 'btn-unselected'
+                }`}
+                title={t('gridStyleGrid')}
+              >
+                <Plus size={18} />
+              </button>
+              <button
+                onClick={() => onGridStyleChange('diagonal')}
+                className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                  gridStyle === 'diagonal' ? 'btn-selected' : 'btn-unselected'
+                }`}
+                title={t('gridStyleDiagonal')}
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Canvas Style Toggle */}
+        <button
+          onClick={() => setShowCanvasStyle(!showCanvasStyle)}
+          className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700"
+        >
+          <Fullscreen size={16} />
+          <span className="font-medium">{t('canvasStyle')}</span>
+          {showCanvasStyle ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
+
+        {/* Center View and Zoom Controls */}
+        <div className="flex gap-3 items-center">
         <button
           onClick={handleCenterView}
           disabled={stations.length === 0}
-          className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200 dark:border-gray-700"
+            className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200 dark:border-gray-700"
         >
-          <ScanEye size={16} />
+            <ScanEye size={16} />
           <span>{t('centerView')}</span>
         </button>
+
+          <div className="flex gap-0 rounded-lg overflow-hidden shadow-md border border-gray-200 dark:border-gray-700">
+          <button
+              onClick={() => onGridZoomChange(Math.max(0.5, gridZoom - 0.1))}
+              className="flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              title={t('zoom') + ' Out'}
+            >
+              <ZoomOut size={16} />
+          </button>
+            <button
+              onClick={() => onGridZoomChange(Math.min(2, gridZoom + 0.1))}
+              className="flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              title={t('zoom') + ' In'}
+            >
+              <ZoomIn size={16} />
+            </button>
+          </div>
+        </div>
         
         {(currentTool === 'createLine' && lineCreationStations.length >= 2) && (
           <button
@@ -950,9 +1179,9 @@ const MapEditor = forwardRef(({
                       style={{ backgroundColor: loopModalData.line.color }}
                     />
                     <span className="font-medium text-sm">{loopModalData.firstStation.name}</span>
-                  </div>
+        </div>
                   <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{t('firstStation')}</span>
-                </div>
+      </div>
               </button>
               
               <button

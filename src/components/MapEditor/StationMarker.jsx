@@ -1,4 +1,4 @@
-const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false, isPlaying = false, onClick, onMouseDown, allStations = [] }) => {
+const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false, isPlaying = false, onClick, onMouseDown, onTouchStart, allStations = [] }) => {
   const fontSize = 14
   const textPadding = 10
   
@@ -81,6 +81,7 @@ const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false,
     <g 
       onClick={onClick} 
       onMouseDown={onMouseDown}
+      onTouchStart={onTouchStart}
       className={isDragging ? "cursor-grabbing" : "cursor-pointer"}
     >
       {isHighlighted && (
