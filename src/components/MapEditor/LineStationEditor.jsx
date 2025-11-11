@@ -172,62 +172,55 @@ const LineStationEditor = ({
               {t('name')}
             </label>
             <div className="flex gap-1.5">
-              <input
-                type="text"
-                value={nameValue}
-                onChange={onNameChange}
-                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                onClick={() => randomizeName(isStationColor)}
-                className="flex-shrink-0 w-[34px] h-[34px] flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
-                title="Randomize name"
-              >
-                <Shuffle 
-                  size={16} 
-                  className={`text-gray-700 dark:text-gray-300 transition-transform ${
-                    (isStationColor && isShufflingStationName) || (!isStationColor && isShufflingLineName) 
-                      ? 'animate-shuffle' 
-                      : ''
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs text-gray-600 dark:text-gray-400 mb-2 block">
-              {t('color')}
-            </label>
-            
-            {/* Color picker with randomize button */}
-            <div className="flex gap-1.5">
-              <label 
-                className="relative flex-1 h-[34px] rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-                style={{ backgroundColor: colorValue }}
-              >
+              <div className="relative flex-1">
                 <input
-                  type="color"
-                  value={colorValue}
-                  onChange={(e) => handleCustomColorChange(e, isStationColor)}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  type="text"
+                  value={nameValue}
+                  onChange={onNameChange}
+                  className="w-full px-3 py-1.5 pr-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-              </label>
-              
-              <button
-                onClick={() => randomizeColor(isStationColor)}
-                className="flex-shrink-0 w-[34px] h-[34px] flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
-                title="Randomize color"
-              >
-                <Shuffle 
-                  size={16} 
-                  className={`text-gray-700 dark:text-gray-300 transition-transform ${
-                    (isStationColor && isShufflingStationColor) || (!isStationColor && isShufflingLineColor) 
-                      ? 'animate-shuffle' 
-                      : ''
-                  }`}
-                />
-              </button>
+                <button
+                  onClick={() => randomizeName(isStationColor)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                  title="Randomize name"
+                >
+                  <Shuffle 
+                    size={14} 
+                    className={`transition-transform ${
+                      (isStationColor && isShufflingStationName) || (!isStationColor && isShufflingLineName) 
+                        ? 'animate-shuffle' 
+                        : ''
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="flex">
+                <label 
+                  className="relative w-[34px] h-[34px] rounded-l-lg border border-r-0 border-gray-300 dark:border-gray-600 cursor-pointer overflow-hidden hover:opacity-80 transition-opacity flex-shrink-0"
+                  style={{ backgroundColor: colorValue }}
+                >
+                  <input
+                    type="color"
+                    value={colorValue}
+                    onChange={(e) => handleCustomColorChange(e, isStationColor)}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </label>
+                <button
+                  onClick={() => randomizeColor(isStationColor)}
+                  className="flex-shrink-0 w-[34px] h-[34px] flex items-center justify-center rounded-r-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                  title="Randomize color"
+                >
+                  <Shuffle 
+                    size={16} 
+                    className={`text-gray-700 dark:text-gray-300 transition-transform ${
+                      (isStationColor && isShufflingStationColor) || (!isStationColor && isShufflingLineColor) 
+                        ? 'animate-shuffle' 
+                        : ''
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -239,7 +232,7 @@ const LineStationEditor = ({
   const freshStation = station ? stations.find(s => s.id === station.id) || station : null
 
   return (
-    <div className="absolute top-4 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 w-72 z-10 max-h-[calc(100vh-2rem)] overflow-y-auto">
+    <div className="absolute top-4 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 w-80 z-10 max-h-[calc(100vh-2rem)] overflow-y-auto">
       <div className="space-y-3" style={{ '--editor-section-bg': 'var(--btn-unselected-bg)' }}>
         {freshStation && renderSection(
           t('editStation'),

@@ -1,10 +1,10 @@
-const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverPoint = null, gridStyle = 'dots' }) => {
+const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverPoint = null, gridStyle = 'dots', gridThickness = 1, gridOpacity = 1 }) => {
   const startX = Math.floor(viewBox.x / spacing) * spacing
   const endX = Math.ceil((viewBox.x + viewBox.width) / spacing) * spacing
   const startY = Math.floor(viewBox.y / spacing) * spacing
   const endY = Math.ceil((viewBox.y + viewBox.height) / spacing) * spacing
 
-  const dotRadius = Math.min(3.5, 2 * zoom)
+  const dotRadius = Math.min(3.5, 2 * zoom) * gridThickness
   const showHoverIndicator = currentTool === 'station' || currentTool === 'createLine' || currentTool === 'drawPath'
 
   const renderGrid = () => {
@@ -40,6 +40,7 @@ const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverP
                   ? 'fill-gray-300 dark:fill-gray-600 hover:fill-blue-400 dark:hover:fill-blue-500'
                   : 'fill-gray-300 dark:fill-gray-600'
             }`}
+            opacity={gridOpacity}
           />
         )
       })
@@ -56,7 +57,8 @@ const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverP
             x2={viewBox.x + viewBox.width}
             y2={y}
             className="stroke-gray-300 dark:stroke-gray-600"
-            strokeWidth={Math.min(1, 0.5 * zoom)}
+            strokeWidth={Math.min(1, 0.5 * zoom) * gridThickness}
+            opacity={gridOpacity}
           />
         )
       }
@@ -74,7 +76,8 @@ const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverP
             x2={x}
             y2={viewBox.y + viewBox.height}
             className="stroke-gray-300 dark:stroke-gray-600"
-            strokeWidth={Math.min(1, 0.5 * zoom)}
+            strokeWidth={Math.min(1, 0.5 * zoom) * gridThickness}
+            opacity={gridOpacity}
           />
         )
       }
@@ -93,7 +96,8 @@ const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverP
             x2={viewBox.x + viewBox.width}
             y2={y}
             className="stroke-gray-300 dark:stroke-gray-600"
-            strokeWidth={Math.min(1, 0.5 * zoom)}
+            strokeWidth={Math.min(1, 0.5 * zoom) * gridThickness}
+            opacity={gridOpacity}
           />
         )
       }
@@ -107,7 +111,8 @@ const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverP
             x2={x}
             y2={viewBox.y + viewBox.height}
             className="stroke-gray-300 dark:stroke-gray-600"
-            strokeWidth={Math.min(1, 0.5 * zoom)}
+            strokeWidth={Math.min(1, 0.5 * zoom) * gridThickness}
+            opacity={gridOpacity}
           />
         )
       }
@@ -151,7 +156,8 @@ const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverP
               x2={x2}
               y2={y2}
               className="stroke-gray-300 dark:stroke-gray-600"
-              strokeWidth={Math.min(1, 0.5 * zoom)}
+              strokeWidth={Math.min(1, 0.5 * zoom) * gridThickness}
+              opacity={gridOpacity}
             />
           )
         }
@@ -187,7 +193,8 @@ const GridCanvas = ({ spacing, viewBox, zoom = 1, currentTool = 'select', hoverP
               x2={x2}
               y2={y2}
               className="stroke-gray-300 dark:stroke-gray-600"
-              strokeWidth={Math.min(1, 0.5 * zoom)}
+              strokeWidth={Math.min(1, 0.5 * zoom) * gridThickness}
+              opacity={gridOpacity}
             />
           )
         }

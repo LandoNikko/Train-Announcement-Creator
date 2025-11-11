@@ -4,6 +4,7 @@ import AnnouncementPanel from './components/AnnouncementEditor/AnnouncementPanel
 import Toolbar from './components/Shared/Toolbar'
 import APIKeyInput from './components/Shared/APIKeyInput'
 import PresetSidebar from './components/Shared/PresetSidebar'
+import CreateLineModal from './components/Shared/CreateLineModal'
 import { trainPresets } from './data/presets'
 import { getPresetPath } from './data/audioPresets'
 
@@ -26,6 +27,11 @@ function App() {
     return saved === 'true'
   })
   const [gridZoom, setGridZoom] = useState(1)
+  const [labelSize, setLabelSize] = useState(1)
+  const [lineThickness, setLineThickness] = useState(1)
+  const [markerSize, setMarkerSize] = useState(1)
+  const [gridThickness, setGridThickness] = useState(1)
+  const [gridOpacity, setGridOpacity] = useState(1)
   const [language, setLanguage] = useState(() => {
     return localStorage.getItem('language') || 'en'
   })
@@ -50,12 +56,23 @@ function App() {
   const [showTranscription, setShowTranscription] = useState(false)
   const [currentTranscription, setCurrentTranscription] = useState('')
   const [selectedLineId, setSelectedLineId] = useState(null)
+  const [audioProcessingPreset, setAudioProcessingPreset] = useState(() => {
+    return localStorage.getItem('audioProcessingPreset') || 'standard'
+  })
+  const [customTransitSystems, setCustomTransitSystems] = useState(() => {
+    const saved = localStorage.getItem('customTransitSystems')
+    return saved ? JSON.parse(saved) : []
+  })
+  const [isCustomMode, setIsCustomMode] = useState(false)
+  const [isLoadingPreset, setIsLoadingPreset] = useState(false)
+  const [showCreateLineModal, setShowCreateLineModal] = useState(false)
 
   useEffect(() => {
     const defaultPreset = trainPresets.find(p => p.id === 'simple')
     if (defaultPreset && stations.length === 0) {
       loadPreset(defaultPreset)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -86,6 +103,14 @@ function App() {
   }, [gridStyle])
 
   useEffect(() => {
+    localStorage.setItem('audioProcessingPreset', audioProcessingPreset)
+  }, [audioProcessingPreset])
+
+  useEffect(() => {
+    localStorage.setItem('customTransitSystems', JSON.stringify(customTransitSystems))
+  }, [customTransitSystems])
+
+  useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
     checkMobile()
     window.addEventListener('resize', checkMobile)
@@ -100,13 +125,21 @@ function App() {
   }, [])
 
   const loadPreset = useCallback((preset) => {
-    // Add grid indices to preset stations
+    setIsLoadingPreset(true)
+    
     const baseSpacing = 30
-    const stationsWithIndices = preset.stations.map(station => ({
-      ...station,
-      gridIndexX: station.gridIndexX ?? Math.round(station.x / baseSpacing),
-      gridIndexY: station.gridIndexY ?? Math.round(station.y / baseSpacing)
-    }))
+    const currentSpacing = 30 * gridZoom
+    const stationsWithIndices = preset.stations.map(station => {
+      const gridIndexX = station.gridIndexX ?? Math.round(station.x / baseSpacing)
+      const gridIndexY = station.gridIndexY ?? Math.round(station.y / baseSpacing)
+      return {
+        ...station,
+        gridIndexX,
+        gridIndexY,
+        x: gridIndexX * currentSpacing,
+        y: gridIndexY * currentSpacing
+      }
+    })
     
     // Convert filename-based audio assignments to URL-based
     const processedAudioAssignments = {}
@@ -152,12 +185,156 @@ function App() {
     
     setCurrentPresetId(preset.id)
     setSelectedStations([])
+    setIsCustomMode(preset.isCustom || false)
+    
+    setTimeout(() => {
+      if (mapEditorRef.current?.centerView) {
+        mapEditorRef.current.centerView(false)
+      }
+      setIsLoadingPreset(false)
+    }, 150)
     setAnnouncements([])
-  }, [])
+  }, [gridZoom])
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode)
   }
+
+  const handleModification = useCallback((newStations, newLines, newAudioAssignments, newAnnouncementTypes, newBetweenSegments, newUploadedAudios, newGeneratedAudioHistory) => {
+    if (isLoadingPreset) return
+    
+    setIsCustomMode(currentMode => {
+      setCurrentPresetId(currentId => {
+        const stationsToUse = newStations ?? stations
+        const linesToUse = newLines ?? lines
+        const audioAssignmentsToUse = newAudioAssignments ?? audioAssignments
+        const announcementTypesToUse = newAnnouncementTypes ?? announcementTypes
+        const betweenSegmentsToUse = newBetweenSegments ?? betweenSegments
+        const uploadedAudiosToUse = newUploadedAudios ?? uploadedAudios
+        const generatedAudioHistoryToUse = newGeneratedAudioHistory ?? generatedAudioHistory
+        
+        if (currentMode) {
+          setCustomTransitSystems(prev => prev.map(p => 
+            p.id === currentId ? {
+              ...p,
+              stations: structuredClone(stationsToUse),
+              lines: structuredClone(linesToUse),
+              audioAssignments: structuredClone(audioAssignmentsToUse),
+              announcementTypes: structuredClone(announcementTypesToUse),
+              betweenSegments: structuredClone(betweenSegmentsToUse),
+              uploadedAudios: structuredClone(uploadedAudiosToUse),
+              generatedAudioHistory: structuredClone(generatedAudioHistoryToUse)
+            } : p
+          ))
+          return currentId
+        }
+        
+        const builtInPreset = trainPresets.find(p => p.id === currentId)
+        if (!builtInPreset) return currentId
+        
+        const timestamp = Date.now()
+        const copyId = `custom-${timestamp}`
+        
+        const linesWithCopySuffix = linesToUse.map(line => ({
+          ...line,
+          name: `${line.name} (Copy)`
+        }))
+        
+        const newTransitSystem = {
+          id: copyId,
+          name: builtInPreset.name,
+          nameKey: builtInPreset.name,
+          isCopy: true,
+          description: builtInPreset.description || 'Custom',
+          descriptionKey: builtInPreset.description,
+          fullDescription: builtInPreset.fullDescription,
+          fullDescriptionKey: builtInPreset.fullDescription,
+          stations: structuredClone(stationsToUse),
+          lines: structuredClone(linesWithCopySuffix),
+          audioAssignments: structuredClone(audioAssignmentsToUse),
+          announcementTypes: structuredClone(announcementTypesToUse),
+          betweenSegments: structuredClone(betweenSegmentsToUse),
+          uploadedAudios: structuredClone(uploadedAudiosToUse),
+          generatedAudioHistory: structuredClone(generatedAudioHistoryToUse),
+          isCustom: true
+        }
+        
+        setCustomTransitSystems(prev => [newTransitSystem, ...prev])
+        setLines(linesWithCopySuffix)
+        
+        return copyId
+      })
+      return true
+    })
+  }, [isLoadingPreset, stations, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory])
+
+  const handleCreateCustomLine = useCallback((stationCount, lineName, lineColor, isLoop, gridPositions = []) => {
+    const timestamp = Date.now()
+    const baseSpacing = 30
+    const minGridIndex = 3
+    const maxGridIndex = 20
+    
+    let newStations = []
+    let newLines = []
+    
+    if (stationCount > 0) {
+      const stationIds = []
+      
+      newStations = Array.from({ length: stationCount }, (_, i) => {
+        let gridIndexX, gridIndexY
+        if (gridPositions.length > i) {
+          gridIndexX = gridPositions[i].gridIndexX
+          gridIndexY = gridPositions[i].gridIndexY
+        } else {
+          gridIndexX = minGridIndex + Math.floor(Math.random() * (maxGridIndex - minGridIndex))
+          gridIndexY = minGridIndex + Math.floor(Math.random() * (maxGridIndex - minGridIndex))
+        }
+        
+        const stationId = `station-${timestamp}-${i}`
+        stationIds.push(stationId)
+        
+        return {
+          id: stationId,
+          name: `Station ${i + 1}`,
+          gridIndexX,
+          gridIndexY,
+          x: gridIndexX * baseSpacing,
+          y: gridIndexY * baseSpacing,
+          color: lineColor,
+          lineId: `line-${timestamp}`,
+          index: i
+        }
+      })
+      
+      const lineStationIds = isLoop ? [...stationIds, stationIds[0]] : stationIds
+      
+      newLines = [{
+        id: `line-${timestamp}`,
+        name: lineName,
+        color: lineColor,
+        stations: lineStationIds
+      }]
+    }
+    
+    const newTransitSystem = {
+      id: `custom-${timestamp}`,
+      name: lineName,
+      description: 'Custom',
+      fullDescription: 'Custom transit system',
+      stations: newStations,
+      lines: newLines,
+      audioAssignments: {},
+      announcementTypes: {},
+      betweenSegments: {},
+      uploadedAudios: [],
+      generatedAudioHistory: {},
+      isCustom: true
+    }
+    
+    setCustomTransitSystems(prev => [newTransitSystem, ...prev])
+    loadPreset(newTransitSystem)
+    setShowCreateLineModal(false)
+  }, [loadPreset])
 
   // Sync historyIndex with ref
   useEffect(() => {
@@ -197,42 +374,48 @@ function App() {
     if (typeof newStations === 'function') {
       setStations(prev => {
         const updated = newStations(prev)
+        handleModification(updated, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
         saveToHistory(updated, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
         return updated
       })
     } else {
+      handleModification(newStations, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
       saveToHistory(newStations, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
       setStations(newStations)
     }
-  }, [lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory])
+  }, [lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory, handleModification])
 
   // Wrap setLines to save history
   const updateLines = useCallback((newLines) => {
     if (typeof newLines === 'function') {
       setLines(prev => {
         const updated = newLines(prev)
+        handleModification(stations, updated, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
         saveToHistory(stations, updated, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
         return updated
       })
     } else {
+      handleModification(stations, newLines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
       saveToHistory(stations, newLines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
       setLines(newLines)
     }
-  }, [stations, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory])
+  }, [stations, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory, handleModification])
 
   // Wrap announcement state setters to save history
   const updateAudioAssignments = useCallback((newAssignments) => {
     if (typeof newAssignments === 'function') {
       setAudioAssignments(prev => {
         const updated = newAssignments(prev)
+        handleModification(stations, lines, updated, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
         saveToHistory(stations, lines, updated, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
         return updated
       })
     } else {
+      handleModification(stations, lines, newAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
       saveToHistory(stations, lines, newAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
       setAudioAssignments(newAssignments)
     }
-  }, [stations, lines, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory])
+  }, [stations, lines, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory, handleModification])
 
   const updateAnnouncementTypes = useCallback((newTypes) => {
     if (typeof newTypes === 'function') {
@@ -291,10 +474,11 @@ function App() {
     const resolvedStations = typeof newStations === 'function' ? newStations(stations) : newStations
     const resolvedLines = typeof newLines === 'function' ? newLines(lines) : newLines
     
+    handleModification(resolvedStations, resolvedLines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
     saveToHistory(resolvedStations, resolvedLines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory)
     setStations(resolvedStations)
     setLines(resolvedLines)
-  }, [stations, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory])
+  }, [stations, lines, audioAssignments, announcementTypes, betweenSegments, uploadedAudios, generatedAudioHistory, saveToHistory, handleModification])
 
   const handleUndo = () => {
     if (historyIndex > 0) {
@@ -386,6 +570,9 @@ function App() {
               language={language}
               isMobile={isMobile}
               onClose={() => setShowMobilePresets(false)}
+              customTransitSystems={customTransitSystems}
+              setCustomTransitSystems={setCustomTransitSystems}
+              onCreateEmpty={() => setShowCreateLineModal(true)}
             />
           </div>
         )}
@@ -419,6 +606,18 @@ function App() {
             setShowTranscription={setShowTranscription}
             currentTranscription={currentTranscription}
             selectedLineId={selectedLineId}
+            labelSize={labelSize}
+            onLabelSizeChange={setLabelSize}
+            lineThickness={lineThickness}
+            onLineThicknessChange={setLineThickness}
+            markerSize={markerSize}
+            onMarkerSizeChange={setMarkerSize}
+            gridThickness={gridThickness}
+            onGridThicknessChange={setGridThickness}
+            gridOpacity={gridOpacity}
+            onGridOpacityChange={setGridOpacity}
+            currentPresetId={currentPresetId}
+            customTransitSystems={customTransitSystems}
           />
           
           {isMobile && (
@@ -476,12 +675,23 @@ function App() {
               showTranscription={showTranscription}
               setShowTranscription={setShowTranscription}
               setCurrentTranscription={setCurrentTranscription}
+              audioProcessingPreset={audioProcessingPreset}
+              setAudioProcessingPreset={setAudioProcessingPreset}
               selectedLineId={selectedLineId}
               setSelectedLineId={setSelectedLineId}
             />
           </div>
         )}
       </div>
+
+      {showCreateLineModal && (
+        <CreateLineModal
+          onClose={() => setShowCreateLineModal(false)}
+          onCreate={handleCreateCustomLine}
+          language={language}
+          lineStyle={lineStyle}
+        />
+      )}
     </div>
   )
 }

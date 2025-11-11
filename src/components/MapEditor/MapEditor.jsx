@@ -1,12 +1,14 @@
 import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react'
-import { ScanEye, CheckCircle, GitCommitVertical, FileText, Info, ZoomIn, ZoomOut, Dot, Minus, Plus, X, EyeOff, Fullscreen, ChevronUp, ChevronDown } from 'lucide-react'
+import { ScanEye, CheckCircle, GitCommitVertical, FileText, Info, ZoomIn, ZoomOut, Dot, Minus, Plus, X, EyeOff, Fullscreen, ChevronUp, ChevronDown, Circle, Type, GitBranch as LineIcon, Grid3x3, Eye } from 'lucide-react'
 import GridCanvas from './GridCanvas'
 import StationMarker from './StationMarker'
 import TrainLine from './TrainLine'
 import LineStationEditor from './LineStationEditor'
 import { useTranslation } from '../../hooks/useTranslation'
+import { useHoldToChange } from '../../hooks/useHoldToChange'
 import { getNextStationName } from '../../data/stationNames'
 import { SoundWave } from '../AnnouncementEditor/AnnouncementPanel'
+import { trainPresets } from '../../data/presets'
 
 const MapEditor = forwardRef(({ 
   stations, 
@@ -34,9 +36,40 @@ const MapEditor = forwardRef(({
   showTranscription = false,
   setShowTranscription,
   currentTranscription = '',
-  selectedLineId = null
+  selectedLineId = null,
+  labelSize = 1,
+  onLabelSizeChange,
+  lineThickness = 1,
+  onLineThicknessChange,
+  markerSize = 1,
+  onMarkerSizeChange,
+  gridThickness = 1,
+  onGridThicknessChange,
+  gridOpacity = 1,
+  onGridOpacityChange,
+  currentPresetId = null,
+  customTransitSystems = []
 }, ref) => {
   const { t } = useTranslation(language)
+  
+  // Get current transit system name
+  const allSystems = [...customTransitSystems, ...trainPresets]
+  const currentSystem = allSystems.find(s => s.id === currentPresetId)
+  const transitSystemName = currentSystem 
+    ? (currentSystem.isCopy && currentSystem.nameKey ? `${t(currentSystem.nameKey)} (${t('copy')})` : t(currentSystem.name))
+    : t('trainLine')
+  
+  const markerSizeDecrease = useHoldToChange(onMarkerSizeChange, -0.05)
+  const markerSizeIncrease = useHoldToChange(onMarkerSizeChange, 0.05)
+  const labelSizeDecrease = useHoldToChange(onLabelSizeChange, -0.05)
+  const labelSizeIncrease = useHoldToChange(onLabelSizeChange, 0.05)
+  const lineThicknessDecrease = useHoldToChange(onLineThicknessChange, -0.05)
+  const lineThicknessIncrease = useHoldToChange(onLineThicknessChange, 0.05)
+  const gridThicknessDecrease = useHoldToChange(onGridThicknessChange, -0.05)
+  const gridThicknessIncrease = useHoldToChange(onGridThicknessChange, 0.05)
+  const gridOpacityDecrease = useHoldToChange(onGridOpacityChange, -0.05)
+  const gridOpacityIncrease = useHoldToChange(onGridOpacityChange, 0.05)
+  
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1200, height: 800 })
   const [isPanning, setIsPanning] = useState(false)
   const [panStart, setPanStart] = useState({ x: 0, y: 0 })
@@ -58,23 +91,84 @@ const MapEditor = forwardRef(({
   const svgRef = useRef(null)
   const containerRef = useRef(null)
   const animationFrameRef = useRef(null)
+  const zoomIntervalRef = useRef(null)
+  const currentZoomRef = useRef(gridZoom)
   
   const gridSpacing = 30 * gridZoom
   const snapToGrid = (coord) => Math.round(coord / gridSpacing) * gridSpacing
 
+  const handleZoomChange = (targetZoom) => {
+    const clampedZoom = Math.max(0.7, Math.min(5, targetZoom))
+    
+    if (clampedZoom !== gridZoom && onGridZoomChange) {
+      const centerX = viewBox.x + viewBox.width / 2
+      const centerY = viewBox.y + viewBox.height / 2
+      const scale = clampedZoom / gridZoom
+      
+      const newX = centerX - (centerX - viewBox.x) / scale
+      const newY = centerY - (centerY - viewBox.y) / scale
+      
+      const newSpacing = 30 * clampedZoom
+      const updatedStations = stations.map(station => {
+        if (station.gridIndexX !== undefined && station.gridIndexY !== undefined) {
+          return {
+            ...station,
+            x: station.gridIndexX * newSpacing,
+            y: station.gridIndexY * newSpacing
+          }
+        }
+        return station
+      })
+      
+      setStationsNoHistory(updatedStations)
+      setViewBox(prev => ({ ...prev, x: newX, y: newY }))
+      onGridZoomChange(clampedZoom)
+      currentZoomRef.current = clampedZoom
+    }
+  }
+
   useEffect(() => {
+    currentZoomRef.current = gridZoom
+  }, [gridZoom])
+
+  const startZoomHold = (direction) => {
+    if (zoomIntervalRef.current) return
+    
+    zoomIntervalRef.current = setInterval(() => {
+      const targetZoom = currentZoomRef.current + (direction * 0.05)
+      handleZoomChange(targetZoom)
+    }, 50)
+  }
+
+  const stopZoomHold = () => {
+    if (zoomIntervalRef.current) {
+      clearInterval(zoomIntervalRef.current)
+      zoomIntervalRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (zoomIntervalRef.current) {
+        clearInterval(zoomIntervalRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const spacing = 30 * gridZoom
     const updatedStations = stations.map(station => {
       if (station.gridIndexX !== undefined && station.gridIndexY !== undefined) {
         return {
           ...station,
-          x: station.gridIndexX * gridSpacing,
-          y: station.gridIndexY * gridSpacing
+          x: station.gridIndexX * spacing,
+          y: station.gridIndexY * spacing
         }
       }
       return station
     })
     setStationsNoHistory(updatedStations)
-  }, [gridZoom, gridSpacing])
+  }, [gridZoom])
 
   useEffect(() => {
     const updateViewBoxSize = () => {
@@ -143,7 +237,7 @@ const MapEditor = forwardRef(({
 
   // Helper function to check if a station is near any line and insert it
   const addStationToNearbyLine = (newStation) => {
-    const proximityThreshold = gridSpacing * 1 // 1 grid space
+    const proximityThreshold = gridSpacing * 1
     
     for (const line of lines) {
       const lineStations = line.stations
@@ -464,13 +558,10 @@ const MapEditor = forwardRef(({
         touch2.clientY - touch1.clientY
       )
       
-      const delta = (distance - lastTouchDistance) * 0.005
-      const newZoom = Math.max(0.5, Math.min(2, gridZoom + delta))
+      const delta = (distance - lastTouchDistance) * 0.007
+      const targetZoom = gridZoom + delta
       
-      if (onGridZoomChange) {
-        onGridZoomChange(newZoom)
-      }
-      
+      handleZoomChange(targetZoom)
       setLastTouchDistance(distance)
       return
     }
@@ -528,12 +619,10 @@ const MapEditor = forwardRef(({
     if (e.shiftKey) {
       e.preventDefault()
       
-      const delta = -e.deltaY * 0.001 // Normalize scroll delta
-      const newZoom = Math.max(0.5, Math.min(2, gridZoom + delta))
+      const delta = -e.deltaY * 0.0015
+      const targetZoom = gridZoom + delta
       
-      if (onGridZoomChange) {
-        onGridZoomChange(newZoom)
-      }
+      handleZoomChange(targetZoom)
     }
   }
 
@@ -820,6 +909,7 @@ const MapEditor = forwardRef(({
           isGhost={true}
           ghostPoints={points}
           color={currentLineColor}
+          lineThickness={lineThickness}
         />
       )
     }
@@ -835,6 +925,7 @@ const MapEditor = forwardRef(({
           isGhost={true}
           ghostPoints={points}
           color={currentLineColor}
+          lineThickness={lineThickness}
         />
       )
     }
@@ -878,7 +969,7 @@ const MapEditor = forwardRef(({
         onTouchEnd={handleTouchEnd}
         onWheel={handleWheel}
       >
-        <GridCanvas spacing={gridSpacing} viewBox={viewBox} zoom={gridZoom} currentTool={currentTool} hoverPoint={hoverGridPoint} gridStyle={gridStyle} />
+        <GridCanvas spacing={gridSpacing} viewBox={viewBox} zoom={gridZoom} currentTool={currentTool} hoverPoint={hoverGridPoint} gridStyle={gridStyle} gridThickness={gridThickness} gridOpacity={gridOpacity} />
         
         {lines.map((line, lineIndex) => (
           <TrainLine
@@ -888,6 +979,7 @@ const MapEditor = forwardRef(({
             lineStyle={lineStyle}
             onClick={(e) => handleLineClick(line, e)}
             isEditing={editingLine?.id === line.id}
+            lineThickness={lineThickness}
           />
         ))}
         
@@ -937,6 +1029,8 @@ const MapEditor = forwardRef(({
               onMouseDown={(e) => handleStationMouseDown(station, e)}
               onTouchStart={(e) => handleStationTouchStart(station, e)}
               allStations={allDisplayStations}
+              labelSize={labelSize}
+              markerSize={markerSize}
             />
           )
         })}
@@ -954,6 +1048,8 @@ const MapEditor = forwardRef(({
             onMouseDown={() => {}}
             onTouchStart={() => {}}
             allStations={allDisplayStations}
+            labelSize={labelSize}
+            markerSize={markerSize}
           />
         ))}
       </svg>
@@ -977,10 +1073,41 @@ const MapEditor = forwardRef(({
         />
       )}
 
+      {/* Transit System Name */}
+      <div className="absolute top-4 left-4 pointer-events-none">
+        <div className="bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+          <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+            {transitSystemName}
+          </div>
+        </div>
+      </div>
+
       {lines.length > 0 && (
-        <div className="absolute top-4 left-4 flex flex-col gap-2">
+        <div className="absolute top-16 left-4 flex flex-col gap-2 items-start">
           {lines.map((line) => {
             const isSelected = selectedLineId === line.id && lines.length > 1
+            
+            // Add line breaks every 32 characters
+            const formatLineName = (name) => {
+              if (name.length <= 32) return name
+              
+              const words = name.split(' ')
+              const lines = []
+              let currentLine = ''
+              
+              for (const word of words) {
+                if ((currentLine + ' ' + word).trim().length > 32) {
+                  if (currentLine) lines.push(currentLine.trim())
+                  currentLine = word
+                } else {
+                  currentLine = currentLine ? currentLine + ' ' + word : word
+                }
+              }
+              if (currentLine) lines.push(currentLine.trim())
+              
+              return lines.join('\n')
+            }
+            
             return (
               <button
               key={line.id}
@@ -1003,8 +1130,8 @@ const MapEditor = forwardRef(({
                 style={{ color: line.color }}
                 className="flex-shrink-0"
               />
-              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                {line.name}
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                {formatLineName(t(line.name))}
               </span>
               </button>
             )
@@ -1127,15 +1254,6 @@ const MapEditor = forwardRef(({
                 <Minus size={18} style={{ transform: 'rotate(90deg)' }} />
               </button>
               <button
-                onClick={() => onGridStyleChange('grid')}
-                className={`flex items-center justify-center w-10 h-10 transition-colors ${
-                  gridStyle === 'grid' ? 'btn-selected' : 'btn-unselected'
-                }`}
-                title={t('gridStyleGrid')}
-              >
-                <Plus size={18} />
-              </button>
-              <button
                 onClick={() => onGridStyleChange('diagonal')}
                 className={`flex items-center justify-center w-10 h-10 transition-colors ${
                   gridStyle === 'diagonal' ? 'btn-selected' : 'btn-unselected'
@@ -1144,6 +1262,197 @@ const MapEditor = forwardRef(({
               >
                 <X size={18} />
               </button>
+              <button
+                onClick={() => onGridStyleChange('grid')}
+                className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                  gridStyle === 'grid' ? 'btn-selected' : 'btn-unselected'
+                }`}
+                title={t('gridStyleGrid')}
+              >
+                <Plus size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Canvas Settings Controls */}
+        {showCanvasStyle && (
+          <div className="flex flex-col gap-3">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-1">{t('canvasSettings')}</span>
+            
+            {/* Marker Size */}
+            <div className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <Circle size={14} className="text-gray-600 dark:text-gray-400" />
+                <span className="text-xs text-gray-700 dark:text-gray-300">{t('markerSize')}</span>
+              </div>
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded px-1 py-0.5">
+                <button
+                  onClick={() => onMarkerSizeChange(Math.max(0.5, markerSize - 0.1))}
+                  onMouseDown={markerSizeDecrease.startHold}
+                  onMouseUp={markerSizeDecrease.stopHold}
+                  onMouseLeave={markerSizeDecrease.stopHold}
+                  onTouchStart={markerSizeDecrease.startHold}
+                  onTouchEnd={markerSizeDecrease.stopHold}
+                  className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <Minus size={10} className="text-gray-700 dark:text-gray-300" />
+                </button>
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400 min-w-[2.5rem] text-center">
+                  {markerSize.toFixed(1)}x
+                </span>
+                <button
+                  onClick={() => onMarkerSizeChange(Math.min(5, markerSize + 0.1))}
+                  onMouseDown={markerSizeIncrease.startHold}
+                  onMouseUp={markerSizeIncrease.stopHold}
+                  onMouseLeave={markerSizeIncrease.stopHold}
+                  onTouchStart={markerSizeIncrease.startHold}
+                  onTouchEnd={markerSizeIncrease.stopHold}
+                  className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <Plus size={10} className="text-gray-700 dark:text-gray-300" />
+                </button>
+              </div>
+            </div>
+
+            {/* Label Size */}
+            <div className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <Type size={14} className="text-gray-600 dark:text-gray-400" />
+                <span className="text-xs text-gray-700 dark:text-gray-300">{t('labelSize')}</span>
+              </div>
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded px-1 py-0.5">
+                <button
+                  onClick={() => onLabelSizeChange(Math.max(0.5, labelSize - 0.1))}
+                  onMouseDown={labelSizeDecrease.startHold}
+                  onMouseUp={labelSizeDecrease.stopHold}
+                  onMouseLeave={labelSizeDecrease.stopHold}
+                  onTouchStart={labelSizeDecrease.startHold}
+                  onTouchEnd={labelSizeDecrease.stopHold}
+                  className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <Minus size={10} className="text-gray-700 dark:text-gray-300" />
+                </button>
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400 min-w-[2.5rem] text-center">
+                  {labelSize.toFixed(1)}x
+                </span>
+                <button
+                  onClick={() => onLabelSizeChange(Math.min(2, labelSize + 0.1))}
+                  onMouseDown={labelSizeIncrease.startHold}
+                  onMouseUp={labelSizeIncrease.stopHold}
+                  onMouseLeave={labelSizeIncrease.stopHold}
+                  onTouchStart={labelSizeIncrease.startHold}
+                  onTouchEnd={labelSizeIncrease.stopHold}
+                  className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <Plus size={10} className="text-gray-700 dark:text-gray-300" />
+                </button>
+              </div>
+            </div>
+
+            {/* Line Thickness */}
+            <div className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <LineIcon size={14} className="text-gray-600 dark:text-gray-400" />
+                <span className="text-xs text-gray-700 dark:text-gray-300">{t('lineThickness')}</span>
+              </div>
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded px-1 py-0.5">
+                <button
+                  onClick={() => onLineThicknessChange(Math.max(0.5, lineThickness - 0.1))}
+                  onMouseDown={lineThicknessDecrease.startHold}
+                  onMouseUp={lineThicknessDecrease.stopHold}
+                  onMouseLeave={lineThicknessDecrease.stopHold}
+                  onTouchStart={lineThicknessDecrease.startHold}
+                  onTouchEnd={lineThicknessDecrease.stopHold}
+                  className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <Minus size={10} className="text-gray-700 dark:text-gray-300" />
+                </button>
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400 min-w-[2.5rem] text-center">
+                  {lineThickness.toFixed(1)}x
+                </span>
+                <button
+                  onClick={() => onLineThicknessChange(Math.min(5, lineThickness + 0.1))}
+                  onMouseDown={lineThicknessIncrease.startHold}
+                  onMouseUp={lineThicknessIncrease.stopHold}
+                  onMouseLeave={lineThicknessIncrease.stopHold}
+                  onTouchStart={lineThicknessIncrease.startHold}
+                  onTouchEnd={lineThicknessIncrease.stopHold}
+                  className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <Plus size={10} className="text-gray-700 dark:text-gray-300" />
+                </button>
+              </div>
+            </div>
+
+            {/* Grid Thickness */}
+            <div className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <Grid3x3 size={14} className="text-gray-600 dark:text-gray-400" />
+                <span className="text-xs text-gray-700 dark:text-gray-300">{t('gridThickness')}</span>
+              </div>
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded px-1 py-0.5">
+                <button
+                  onClick={() => onGridThicknessChange(Math.max(0.5, gridThickness - 0.1))}
+                  onMouseDown={gridThicknessDecrease.startHold}
+                  onMouseUp={gridThicknessDecrease.stopHold}
+                  onMouseLeave={gridThicknessDecrease.stopHold}
+                  onTouchStart={gridThicknessDecrease.startHold}
+                  onTouchEnd={gridThicknessDecrease.stopHold}
+                  className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <Minus size={10} className="text-gray-700 dark:text-gray-300" />
+                </button>
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400 min-w-[2.5rem] text-center">
+                  {gridThickness.toFixed(1)}x
+                </span>
+                <button
+                  onClick={() => onGridThicknessChange(Math.min(5, gridThickness + 0.1))}
+                  onMouseDown={gridThicknessIncrease.startHold}
+                  onMouseUp={gridThicknessIncrease.stopHold}
+                  onMouseLeave={gridThicknessIncrease.stopHold}
+                  onTouchStart={gridThicknessIncrease.startHold}
+                  onTouchEnd={gridThicknessIncrease.stopHold}
+                  className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <Plus size={10} className="text-gray-700 dark:text-gray-300" />
+                </button>
+              </div>
+            </div>
+
+            {/* Grid Opacity */}
+            <div className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <Eye size={14} className="text-gray-600 dark:text-gray-400" />
+                <span className="text-xs text-gray-700 dark:text-gray-300">{t('gridOpacity')}</span>
+              </div>
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded px-1 py-0.5">
+                <button
+                  onClick={() => onGridOpacityChange(Math.max(0.1, gridOpacity - 0.1))}
+                  onMouseDown={gridOpacityDecrease.startHold}
+                  onMouseUp={gridOpacityDecrease.stopHold}
+                  onMouseLeave={gridOpacityDecrease.stopHold}
+                  onTouchStart={gridOpacityDecrease.startHold}
+                  onTouchEnd={gridOpacityDecrease.stopHold}
+                  className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <Minus size={10} className="text-gray-700 dark:text-gray-300" />
+                </button>
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400 min-w-[2.5rem] text-center">
+                  {gridOpacity.toFixed(1)}x
+                </span>
+                <button
+                  onClick={() => onGridOpacityChange(Math.min(1, gridOpacity + 0.1))}
+                  onMouseDown={gridOpacityIncrease.startHold}
+                  onMouseUp={gridOpacityIncrease.stopHold}
+                  onMouseLeave={gridOpacityIncrease.stopHold}
+                  onTouchStart={gridOpacityIncrease.startHold}
+                  onTouchEnd={gridOpacityIncrease.stopHold}
+                  className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <Plus size={10} className="text-gray-700 dark:text-gray-300" />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1171,16 +1480,26 @@ const MapEditor = forwardRef(({
 
           <div className="flex gap-0 rounded-lg overflow-hidden shadow-md border border-gray-200 dark:border-gray-700">
           <button
-              onClick={() => onGridZoomChange(Math.max(0.5, gridZoom - 0.1))}
+              onClick={() => handleZoomChange(gridZoom - 0.15)}
+              onMouseDown={() => startZoomHold(-1)}
+              onMouseUp={stopZoomHold}
+              onMouseLeave={stopZoomHold}
+              onTouchStart={() => startZoomHold(-1)}
+              onTouchEnd={stopZoomHold}
               className="flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              title={t('zoom') + ' Out'}
+              title={`${t('zoomOut')} (${t('shiftScroll')})`}
             >
               <ZoomOut size={16} />
           </button>
             <button
-              onClick={() => onGridZoomChange(Math.min(2, gridZoom + 0.1))}
+              onClick={() => handleZoomChange(gridZoom + 0.15)}
+              onMouseDown={() => startZoomHold(1)}
+              onMouseUp={stopZoomHold}
+              onMouseLeave={stopZoomHold}
+              onTouchStart={() => startZoomHold(1)}
+              onTouchEnd={stopZoomHold}
               className="flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              title={t('zoom') + ' In'}
+              title={`${t('zoomIn')} (${t('shiftScroll')})`}
             >
               <ZoomIn size={16} />
             </button>

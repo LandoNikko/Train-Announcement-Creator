@@ -1,20 +1,26 @@
-const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false, isPlaying = false, onClick, onMouseDown, onTouchStart, allStations = [] }) => {
-  const fontSize = 14
-  const textPadding = 10
+const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false, isPlaying = false, onClick, onMouseDown, onTouchStart, allStations = [], labelSize = 1, markerSize = 1 }) => {
+  const fontSize = 14 * labelSize
+  const textPaddingX = 16 * labelSize
+  const textPaddingY = 12 * labelSize
+  const markerRadius = 8 * markerSize
+  const labelOffset = 18 + (markerRadius - 8)
   
-  // Calculate text dimensions more accurately
-  const textWidth = station.name.length * (fontSize * 0.6)
-  const rectWidth = textWidth + textPadding * 2
-  const rectHeight = fontSize + textPadding
+  const getTextWidth = (text) => {
+    const avgCharWidth = fontSize * 0.55
+    return text.length * avgCharWidth
+  }
   
-  // Check for label collisions with all station label positions
+  const textWidth = getTextWidth(station.name)
+  const rectWidth = textWidth + textPaddingX * 2
+  const rectHeight = fontSize + textPaddingY
+  
   const getOtherStationLabelBounds = (other, positionType = 'top') => {
-    const otherWidth = other.name.length * (fontSize * 0.6) + textPadding * 2
+    const otherWidth = getTextWidth(other.name) + textPaddingX * 2
     const otherHeight = rectHeight
     
     const positions = {
-      top: { x: other.x - otherWidth / 2, y: other.y - 18 - otherHeight },
-      bottom: { x: other.x - otherWidth / 2, y: other.y + 18 },
+      top: { x: other.x - otherWidth / 2, y: other.y - labelOffset - otherHeight },
+      bottom: { x: other.x - otherWidth / 2, y: other.y + labelOffset },
       left: { x: other.x - otherWidth - 15, y: other.y - otherHeight / 2 },
       right: { x: other.x + 15, y: other.y - otherHeight / 2 }
     }
@@ -44,8 +50,8 @@ const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false,
   
   // Try different label positions: top, bottom, left, right
   const positions = [
-    { x: station.x - rectWidth / 2, y: station.y - 18 - rectHeight, name: 'top' },
-    { x: station.x - rectWidth / 2, y: station.y + 18, name: 'bottom' },
+    { x: station.x - rectWidth / 2, y: station.y - labelOffset - rectHeight, name: 'top' },
+    { x: station.x - rectWidth / 2, y: station.y + labelOffset, name: 'bottom' },
     { x: station.x - rectWidth - 15, y: station.y - rectHeight / 2, name: 'left' },
     { x: station.x + 15, y: station.y - rectHeight / 2, name: 'right' }
   ]
@@ -88,10 +94,10 @@ const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false,
         <circle
           cx={station.x}
           cy={station.y}
-          r="16"
+          r={16 * markerSize}
           fill="none"
           stroke="rgba(156, 163, 175, 0.6)"
-          strokeWidth="3"
+          strokeWidth={3 * markerSize}
           opacity="0.8"
           className={isPlaying ? "animate-[pulse_1s_ease-in-out_infinite] dark:stroke-white/40" : "dark:stroke-white/40"}
         />
@@ -99,16 +105,16 @@ const StationMarker = ({ station, isSelected, isDragging, isHighlighted = false,
       <circle
         cx={station.x}
         cy={station.y}
-        r={isDragging ? "10" : "8"}
+        r={isDragging ? (10 * markerSize) : (8 * markerSize)}
         fill={isSelected ? '#fbbf24' : station.color}
         stroke={isHighlighted ? 'rgba(156, 163, 175, 0.8)' : 'white'}
-        strokeWidth={isHighlighted ? '3' : '2'}
-        className="transition-all hover:r-10 dark:[stroke:rgba(255,255,255,0.5)]"
+        strokeWidth={isHighlighted ? (3 * markerSize) : (2 * markerSize)}
+        className="hover:r-10 dark:[stroke:rgba(255,255,255,0.5)]"
       />
       <circle
         cx={station.x}
         cy={station.y}
-        r="3"
+        r={3 * markerSize}
         fill="white"
       />
       <rect

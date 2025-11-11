@@ -1,4 +1,4 @@
-import { MousePointer2, MapPin, Minus, Key, Info, RotateCcw, ZoomIn, ZoomOut, Globe, Undo2, Redo2, ChevronUp, GitBranch, Pencil, Hash } from 'lucide-react'
+import { MousePointer2, MapPin, Key, Info, RotateCcw, Globe, Undo2, Redo2, ChevronUp, GitBranch, Pencil, Hash } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from '../../hooks/useTranslation'
 import { languages } from '../../locales/translations'
@@ -89,17 +89,19 @@ const Toolbar = ({ currentTool, onToolChange, onShowApiKey, hasApiKey, isDarkMod
         </div>
 
       <div className="flex items-center gap-3">
-        <button
-          onClick={onToggleStationNumbers}
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-            showStationNumbers
-              ? 'bg-blue-500 text-white'
-              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-          }`}
-          title={showStationNumbers ? t('hideStationNumbers') : t('showStationNumbers')}
-        >
-          <Hash size={18} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onToggleStationNumbers}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+              showStationNumbers
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+            title={showStationNumbers ? t('hideStationNumbers') : t('showStationNumbers')}
+          >
+            <Hash size={18} />
+          </button>
+        </div>
 
         <div className="flex items-center gap-1">
           <button
